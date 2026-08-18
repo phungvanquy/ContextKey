@@ -5,6 +5,7 @@ mod api;
 mod clipboard;
 mod config;
 mod hotkey;
+mod keyhook;
 mod screenshot;
 mod tts;
 mod windows;
@@ -97,7 +98,7 @@ async fn test_connection(
 
 /// Called from hotkey.rs via tauri::async_runtime when Ctrl+C+C fires.
 pub async fn handle_translate_trigger(app: AppHandle) {
-    let (cx, cy) = hotkey::cursor_pos();
+    let (cx, cy) = keyhook::cursor_pos();
     let cfg = app.state::<ConfigState>().get();
 
     // Spawn clipboard polling on a blocking thread — runs concurrently with
@@ -154,7 +155,7 @@ pub async fn handle_translate_trigger(app: AppHandle) {
 /// Captures the selection, opens the chat popup (even for an empty selection —
 /// that becomes free chat), and lets the frontend drive requests via chat_send.
 pub async fn handle_chat_trigger(app: AppHandle) {
-    let (cx, cy) = hotkey::cursor_pos();
+    let (cx, cy) = keyhook::cursor_pos();
 
     // Spawn clipboard polling immediately — runs while we prepare
     let clipboard_fut = tokio::task::spawn_blocking(clipboard::get_clipboard_after_copy);
@@ -208,7 +209,7 @@ async fn chat_send(
 // ── Screenshot trigger ───────────────────────────────────────────────────────
 
 pub async fn handle_screenshot_trigger(app: AppHandle) {
-    let (cx, cy) = hotkey::cursor_pos();
+    let (cx, cy) = keyhook::cursor_pos();
 
     // Capture all monitors
     let captures = match screenshot::capture_all_monitors() {
@@ -337,7 +338,7 @@ async fn handle_overlay_select(app: AppHandle, event: tauri::Event) {
         }
     } else {
         // Open chat popup fresh (no text context, image will arrive via event)
-        let (cx, cy) = hotkey::cursor_pos();
+        let (cx, cy) = keyhook::cursor_pos();
         if let Err(e) = windows::show_chat_popup(&app, "", cx, cy) {
             eprintln!("chat popup error: {e}");
             windows::show_toast(&app, "Could not open the chat popup", cx, cy);
@@ -478,7 +479,7 @@ fn main() {
                 *guard = None;
             });
 
-            // ── Spawn combined rdev listener (hotkeys + cursor tracking) ───────
+            // ── Install the global keyboard hook ───────────────────────────────
             let app_handle = app.handle().clone();
             hotkey::spawn_hotkey_listener(app_handle, parsed_hotkeys.clone());
 
@@ -506,6 +507,10 @@ fn main() {
             if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
                 if code.is_none() {
                     api.prevent_exit();
+                } else {
+                    // Real exit (tray Quit): release the global hook rather than
+                    // leaving it for process teardown to clean up.
+                    keyhook::uninstall();
                 }
             }
         });

@@ -4,6 +4,8 @@ Requires a Windows run with a global keyboard hook + API key (not headless/CI). 
 
 Ticked items were confirmed on real Windows against v0.4.0 (2026-07-27) — nothing failed. Unticked items are simply not exercised yet, not known-broken. The ones still open mostly need instrumentation rather than clicking: the duplicate-question check wants a proxy or verbose server log, the capture-release check wants an RSS watch, and cancellation wants provider usage visible.
 
+The keyboard-hook rewrite (`ime-safe-keyboard-hook`) invalidated the input-path ticks: the whole hook is new code, so re-run **Keyboard hook / IME** plus the hotkey and cursor-anchoring items even where they were ticked for v0.4.0.
+
 ## Core
 - [ ] Ctrl+C+Space opens chat with selection as context; Ctrl+C+C still translates; neither double-fires
 - [ ] Esc / close button close the chat popup; clearing context switches to Free Chat. Clicking OUTSIDE must NOT close it
@@ -32,6 +34,13 @@ Ticked items were confirmed on real Windows against v0.4.0 (2026-07-27) — noth
 - [ ] Chat error: the failed turn shows the error in its bubble, Send re-enables, Retry replaces the bubble without duplicating history
 - [ ] **OQ:** does chat `always_on_top` still feel right now that it persists? If intrusive, drop it and record the decision
 - [ ] **OQ:** is the ~2s toast duration right? Tune `DISMISS_MS` in `toast.js` if not
+
+## Keyboard hook / IME (the reason `keyhook.rs` exists)
+- [ ] **A/B typing check — do this first.** Quit from the tray (not just closing a popup), type a long Vietnamese passage FAST in Notepad, relaunch, retype the same passage at the same speed. Accents must compose identically both times. If the app-running pass is worse, the hook body is still at fault → `design.md` D7 (move the state machine off the hook thread). Repeat with a CJK IME if one is available
+- [ ] Same A/B at speed inside the chat input (a WebView2 text field, not a native one)
+- [ ] Hotkeys do NOT fire from synthesised input: send the bound sequence via AutoHotkey or `SendInput` → nothing should trigger (`LLKHF_INJECTED` is ignored by design)
+- [ ] After tray Quit, the hotkeys stop working immediately — the hook is uninstalled, not orphaned
+- [ ] Double-tap still needs a real release: HOLD Ctrl+C so it key-repeats → must NOT trigger translate
 
 ## Configurable hotkeys
 - [x] All three hotkeys re-bind from Settings and take effect WITHOUT restart; the old binding stops firing

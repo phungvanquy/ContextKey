@@ -24,9 +24,9 @@ struct PopupSpec {
 
 /// Build, position, and show a frameless popup anchored to the cursor.
 ///
-/// Built hidden so it can be placed by PHYSICAL pixel before first paint (rdev
-/// reports physical, the builder's `position()` takes logical) — otherwise it
-/// flashes at the wrong spot on high-DPI displays.
+/// Built hidden so it can be placed by PHYSICAL pixel before first paint
+/// (`keyhook::cursor_pos` reports physical, the builder's `position()` takes
+/// logical) — otherwise it flashes at the wrong spot on high-DPI displays.
 fn show_cursor_popup(
     app: &AppHandle,
     spec: PopupSpec,
@@ -144,10 +144,10 @@ pub fn show_chat_popup(
 // ── Cursor-anchored positioning (DPI-safe) ──────────────────────────────────────
 
 /// Position an already-built (hidden) window near the cursor, clamped to the
-/// monitor under the cursor. All math is in physical pixels: rdev reports
-/// physical, set_position takes physical, and scale comes from the cursor's
-/// monitor (correct on mixed-DPI multi-monitor). Never pass rdev coords to the
-/// builder's logical `.position()`.
+/// monitor under the cursor. All math is in physical pixels: `GetCursorPos`
+/// reports physical, set_position takes physical, and scale comes from the
+/// cursor's monitor (correct on mixed-DPI multi-monitor). Never pass physical
+/// coords to the builder's logical `.position()`.
 fn position_at_cursor(
     window: &tauri::WebviewWindow,
     logical_w: f64,

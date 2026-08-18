@@ -34,6 +34,13 @@ jobs:
         with:
           workspaces: src-tauri
 
+      # Pure-logic tests (hotkey VK mapping ↔ the frontend's SUPPORTED_THEN set).
+      # Nothing here touches the hook itself — that needs a real desktop session,
+      # see openspec/QA-CHECKLIST.md.
+      - name: Run unit tests
+        working-directory: src-tauri
+        run: cargo test --bins
+
       # On a tag push (v*), tauri-action builds AND publishes a draft GitHub
       # Release with the installer attached. On a branch push it only builds
       # (empty tagName → no release), and the artifacts are uploaded below.

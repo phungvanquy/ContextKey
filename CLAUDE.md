@@ -12,9 +12,10 @@ Everything is built and CI-green: translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS
 ### Backend (`src-tauri/src/`)
 | Module | Responsibility |
 |---|---|
-| `main.rs` | Bootstrap: single-instance plugin, config load, tray, rdev listener, Tauri commands, translate/chat/screenshot triggers, overlay-select handler |
+| `main.rs` | Bootstrap: single-instance plugin, config load, tray, hook install, Tauri commands, translate/chat/screenshot triggers, overlay-select handler |
 | `config.rs` | `Config` struct, load/save (`~/.quicktranslator_config.json`), `ConfigState` (Mutex) |
-| `hotkey.rs` | rdev passive listener; table-driven two-step state machine read from config via `ArcSwap`; `cursor_pos()` samples cursor on demand at fire time |
+| `keyhook.rs` | The app's whole input FFI: owns the `WH_KEYBOARD_LL` hook, VK constants, `cursor_pos()`, `ctrl_is_down()`. Non-Windows stubs so `cargo check` runs on Linux |
+| `hotkey.rs` | Table-driven two-step state machine over `keyhook` events, hot-swapped from config via `ArcSwap`; unit-tested against the `SUPPORTED_THEN` contract |
 | `clipboard.rs` | `get_clipboard_after_copy`: polls arboard ≤10× @50ms for changed text |
 | `api.rs` | reqwest + SSE to chat/completions; emits `<flow>://chunk\|done\|error`; routes to `vision_model` when the history carries an image; `StreamRegistry` holds per-window cancellation flags |
 | `screenshot.rs` | xcap multi-monitor capture, crop, JPEG encode (q60 preview / q80 ≤1568px for API); `ScreenshotStore` holds captures in RAM only |
@@ -36,15 +37,18 @@ Everything is built and CI-green: translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS
 ### Key design decisions
 
 **Hotkey / input**
-- `rdev::listen` (passive, single thread) — the Tauri global-shortcut plugin can't express a double-tap.
-- Cursor position is sampled on demand at fire time (`hotkey::cursor_pos()`, physical px), never per `MouseMove`. rdev still installs a mouse hook but does no per-event work.
-- Arm-reset is lazy (no timer thread): both fire paths re-check `now - last_ctrl_c_time < 600ms`. Spawning a thread inside `WH_KEYBOARD_LL` risks `LowLevelHooksTimeout` (~300ms) unhooking the listener, so the callback stays allocation-free.
-- Hook state lock recovers on poison, so a transient panic can't permanently kill the hotkey. Ctrl state comes from `GetAsyncKeyState`, not a cached flag that a missed KeyRelease would desync.
-- **Hotkey "then" keys must round-trip.** `SUPPORTED_THEN` (`settings.js`) and `is_supported_then` (backend, enforced in `HotkeyConfig::validate`) must stay in sync — an unmapped name parses to `Key::Unknown(0)`, which no real event carries, so the binding saves fine and then silently never fires. Keep RCtrl/RShift in both: double-tap uses a modifier as its "then".
+- We own the hook (`keyhook.rs`): one `SetWindowsHookExW(WH_KEYBOARD_LL)`, passive, plus a `GetMessageW` pump on the installing thread (mandatory — an LL hook is dispatched to that thread's queue, so without it the hook installs and observes nothing). The Tauri global-shortcut plugin can't express a double-tap. No mouse hook is installed at all.
+- **The callback must never call `ToUnicodeEx`, `AttachThreadInput`, `GetKeyboardState`, or `GetKeyboardLayout`.** This is why `rdev` was dropped: it made all four per keystroke, system-wide, to fill an `Event::name` we never read. `ToUnicodeEx` rewrites the kernel keyboard buffer holding dead-key/composition state; `AttachThreadInput` alters key state and is documented to fragment TSF IME composition from a hook callback ([MS Q&A 1605020](https://learn.microsoft.com/en-us/answers/questions/1605020/attachthreadinput-in-the-callback-of-setwindowshoo)). It surfaced as Vietnamese Telex dropping accents while typing fast — Telex needs 2-3 keystrokes per character, so it hits that window far more often than Latin typing. rdev also had an unbounded `while len < 0 { ToUnicodeEx(...) }` on dead keys, inside a ~300ms budget.
+- Keys are identified by raw VK code (`u32`), which is what the hook delivers — no enum translation in either direction.
+- **Injected keystrokes (`LLKHF_INJECTED`) are ignored.** A hotkey is a physical gesture, and IMEs synthesise input while composing. Trade-off: automation tools can't trigger hotkeys programmatically.
+- Arm-reset is lazy (no timer thread): both fire paths re-check the window against the arm timestamp. `LowLevelHooksTimeout` (~300ms) skips or unhooks a slow callback, so the callback is genuinely allocation-free now (previously only *our* half was — rdev allocated upstream of it).
+- The callback wraps the state machine in `catch_unwind` (a panic across `extern "system"` is UB) and calls `CallNextHookEx` on *every* path, including a skipped event — swallowing one drops a keystroke system-wide.
+- Hook state lock recovers on poison, so a transient panic can't permanently kill the hotkey. Ctrl state comes from `GetAsyncKeyState`, not a cached flag that a missed KeyRelease would desync. Note AltGr synthesises LCtrl+RAlt so it reads as Ctrl-down; harmless, no whitelisted prefix uses AltGr.
+- **Hotkey "then" keys must round-trip.** `SUPPORTED_THEN` (`settings.js`) and `is_supported_then` (backend, enforced in `HotkeyConfig::validate`) must stay in sync — an unmapped name resolves to VK `0`, which no real event carries, so the binding saves fine and then silently never fires. The `hotkey.rs` tests assert every `SUPPORTED_THEN` name maps to a non-zero VK; update both sides plus the test list together. Keep RCtrl/RShift in all of them: double-tap uses a modifier as its "then".
 
 **Process / lifecycle**
 - **Single instance** via `tauri-plugin-single-instance`, registered FIRST. A second process would install a second hook set and double-fire every hotkey; instead it surfaces Settings.
-- Tray-app lifecycle: Tauri exits on last-window-close, so `main.rs` calls `api.prevent_exit()` on `RunEvent::ExitRequested { code: None, .. }` (window close) and lets `Some(_)` through (tray Quit). Without it, closing a popup kills the app.
+- Tray-app lifecycle: Tauri exits on last-window-close, so `main.rs` calls `api.prevent_exit()` on `RunEvent::ExitRequested { code: None, .. }` (window close) and lets `Some(_)` through (tray Quit). Without it, closing a popup kills the app. The `Some(_)` branch also calls `keyhook::uninstall()` so the global hook is released explicitly, not left to process teardown.
 - No elevation: `app.manifest` requests `asInvoker`. Windows UIPI means the hook is blind while an elevated window is foreground; running as admin is the per-session workaround.
 
 **API / clipboard / config**
@@ -86,4 +90,5 @@ Everything is built and CI-green: translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS
 
 ## Roadmap / Known Gaps
 All shipped behavior is specced under `openspec/specs/`. Not built: translation history/log, source-language auto-detection.
-Known weak spots, unverified against current code — confirm before acting: clipboard capture is polling with a fixed retry budget (can return stale text); completion token cap is hardcoded (long replies truncate silently); the whole 50-message chat window is sent each turn; the API key sits in plaintext JSON (OS keychain would be better); the Settings window is fixed-size; test coverage is thin (only a Node markdown test — config/clipboard/SSE untested).
+Known weak spots, unverified against current code — confirm before acting: clipboard capture is polling with a fixed retry budget (can return stale text); completion token cap is hardcoded (long replies truncate silently); the whole 50-message chat window is sent each turn; the API key sits in plaintext JSON (OS keychain would be better); the Settings window is fixed-size; test coverage is thin (`hotkey.rs` unit tests cover the VK/`SUPPORTED_THEN` contract — config/clipboard/SSE untested; CLAUDE.md previously claimed a Node markdown test, which is not in the tree).
+If a keyboard hook still perturbs typing after `keyhook.rs`, the next lever is moving the state machine off the hook thread (ring buffer + worker), leaving the callback as "record VK, return" — deliberately deferred as unmeasured, see `ime-safe-keyboard-hook/design.md` D7.

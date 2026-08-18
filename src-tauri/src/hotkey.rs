@@ -1,27 +1,27 @@
 //! Global hotkey engine — table-driven, configurable.
 //!
-//! Uses rdev::listen (passive, non-suppressing) to observe key events.
-//! The state machine interprets a parsed hotkey table (hot-swappable via ArcSwap)
+//! Observes key events from the passive, non-suppressing hook in `keyhook`. The
+//! state machine interprets a parsed hotkey table (hot-swappable via ArcSwap)
 //! rather than hardcoded key sequences.
 //!
 //! Every hotkey is a two-step sequence: prefix → then, within a time window.
 //! Double-tap is the degenerate case where prefix == then (requires a KeyRelease
 //! between the two presses to filter out key-repeat).
 //!
-//! Ctrl state is queried live (GetAsyncKeyState on Windows) to avoid stuck-key
-//! desync from missed KeyRelease events.
+//! Ctrl state is queried live (`keyhook::ctrl_is_down`) to avoid stuck-key desync
+//! from missed KeyRelease events.
 //!
-//! rdev::listen can only be called once per process — this single thread handles
-//! all hotkey detection.
+//! The hook is installed once for the life of the process — this single thread
+//! handles all hotkey detection.
 
 use arc_swap::ArcSwap;
-use rdev::{listen, Event, EventType, Key};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
 use crate::config::HotkeyConfig;
+use crate::keyhook::{self, KeyEvent, Vk};
 
 // ── Actions ──────────────────────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ pub enum Action {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedPrefix {
-    pub key: Key,
+    pub key: Vk,
     pub requires_ctrl: bool,
 }
 
@@ -45,7 +45,7 @@ pub struct ParsedPrefix {
 #[derive(Debug, Clone)]
 pub struct ParsedEntry {
     pub prefix: ParsedPrefix,
-    pub then_key: Key,
+    pub then_key: Vk,
     pub then_requires_ctrl: bool,
     pub window_ms: u16,
     pub action: Action,
@@ -57,7 +57,7 @@ pub struct ParsedEntry {
 #[derive(Debug, Clone)]
 pub struct ParsedHotkeys {
     pub entries: Vec<ParsedEntry>,
-    pub no_reset_keys: HashSet<Key>,
+    pub no_reset_keys: HashSet<Vk>,
 }
 
 impl ParsedHotkeys {
@@ -69,15 +69,15 @@ impl ParsedHotkeys {
         ];
 
         let mut entries = Vec::with_capacity(3);
-        let mut no_reset_keys: HashSet<Key> = HashSet::new();
+        let mut no_reset_keys: HashSet<Vk> = HashSet::new();
 
         // Always exempt modifier keys from resetting armed state
         for k in [
-            Key::ControlLeft, Key::ControlRight,
-            Key::ShiftLeft, Key::ShiftRight,
-            Key::Alt, Key::AltGr,
-            Key::MetaLeft, Key::MetaRight,
-            Key::CapsLock,
+            keyhook::VK_CONTROL, keyhook::VK_LCONTROL, keyhook::VK_RCONTROL,
+            keyhook::VK_SHIFT, keyhook::VK_LSHIFT, keyhook::VK_RSHIFT,
+            keyhook::VK_MENU, keyhook::VK_LMENU, keyhook::VK_RMENU,
+            keyhook::VK_LWIN, keyhook::VK_RWIN,
+            keyhook::VK_CAPITAL,
         ] {
             no_reset_keys.insert(k);
         }
@@ -108,138 +108,67 @@ impl ParsedHotkeys {
 
 fn parse_prefix(s: &str) -> ParsedPrefix {
     match s {
-        "Ctrl+C" => ParsedPrefix { key: Key::KeyC, requires_ctrl: true },
-        "Ctrl+Insert" => ParsedPrefix { key: Key::Insert, requires_ctrl: true },
-        "RCtrl" => ParsedPrefix { key: Key::ControlRight, requires_ctrl: false },
-        "RShift" => ParsedPrefix { key: Key::ShiftRight, requires_ctrl: false },
-        _ => ParsedPrefix { key: Key::KeyC, requires_ctrl: true }, // fallback
+        "Ctrl+C" => ParsedPrefix { key: keyhook::VK_C, requires_ctrl: true },
+        "Ctrl+Insert" => ParsedPrefix { key: keyhook::VK_INSERT, requires_ctrl: true },
+        "RCtrl" => ParsedPrefix { key: keyhook::VK_RCONTROL, requires_ctrl: false },
+        "RShift" => ParsedPrefix { key: keyhook::VK_RSHIFT, requires_ctrl: false },
+        _ => ParsedPrefix { key: keyhook::VK_C, requires_ctrl: true }, // fallback
     }
 }
 
-/// Whether a "then" key name can be mapped to a real rdev key.
+/// Whether a "then" key name can be mapped to a virtual-key code.
 ///
 /// Config validation calls this to reject an unmappable name at save/load time.
-/// Otherwise it parses to `Key::Unknown(0)`, which no real event ever carries —
-/// the hotkey silently never fires, with nothing to tell the user why.
+/// Otherwise it resolves to 0, which no real event carries — the hotkey would
+/// save fine and then silently never fire, with nothing to tell the user why.
+///
+/// The accepted set MUST stay in sync with `SUPPORTED_THEN` in `frontend/settings.js`.
 pub fn is_supported_then(then: &str) -> bool {
     then == "RCtrl" || then == "RShift" || map_then_key(then).is_some()
 }
 
-fn parse_then(then: &str, prefix: &str) -> (Key, bool) {
+fn parse_then(then: &str, prefix: &str) -> (Vk, bool) {
     // For double-tap patterns, the "then" key is the same as the prefix key
     if then == "RCtrl" {
-        return (Key::ControlRight, false);
+        return (keyhook::VK_RCONTROL, false);
     }
     if then == "RShift" {
-        return (Key::ShiftRight, false);
+        return (keyhook::VK_RSHIFT, false);
     }
 
     // For prefix "Ctrl+C" / "Ctrl+Insert", Ctrl is still held when "then" fires
     let ctrl = prefix.starts_with("Ctrl+");
 
     // Unreachable for a validated config — is_supported_then gates every write.
-    (map_then_key(then).unwrap_or(Key::Unknown(0)), ctrl)
+    (map_then_key(then).unwrap_or(0), ctrl)
 }
 
-fn map_then_key(then: &str) -> Option<Key> {
-    let key = match then {
-        "C" => Key::KeyC,
-        "Space" => Key::Space,
-        "A" => Key::KeyA,
-        "B" => Key::KeyB,
-        "D" => Key::KeyD,
-        "E" => Key::KeyE,
-        "F" => Key::KeyF,
-        "G" => Key::KeyG,
-        "H" => Key::KeyH,
-        "I" => Key::KeyI,
-        "J" => Key::KeyJ,
-        "K" => Key::KeyK,
-        "L" => Key::KeyL,
-        "M" => Key::KeyM,
-        "N" => Key::KeyN,
-        "O" => Key::KeyO,
-        "P" => Key::KeyP,
-        "Q" => Key::KeyQ,
-        "R" => Key::KeyR,
-        "S" => Key::KeyS,
-        "T" => Key::KeyT,
-        "U" => Key::KeyU,
-        "V" => Key::KeyV,
-        "W" => Key::KeyW,
-        "X" => Key::KeyX,
-        "Y" => Key::KeyY,
-        "Z" => Key::KeyZ,
-        "Insert" => Key::Insert,
-        "0" => Key::Num0,
-        "1" => Key::Num1,
-        "2" => Key::Num2,
-        "3" => Key::Num3,
-        "4" => Key::Num4,
-        "5" => Key::Num5,
-        "6" => Key::Num6,
-        "7" => Key::Num7,
-        "8" => Key::Num8,
-        "9" => Key::Num9,
-        "F1" => Key::F1,
-        "F2" => Key::F2,
-        "F3" => Key::F3,
-        "F4" => Key::F4,
-        "F5" => Key::F5,
-        "F6" => Key::F6,
-        "F7" => Key::F7,
-        "F8" => Key::F8,
-        "F9" => Key::F9,
-        "F10" => Key::F10,
-        "F11" => Key::F11,
-        "F12" => Key::F12,
-        _ => return None,
-    };
-    Some(key)
-}
+fn map_then_key(then: &str) -> Option<Vk> {
+    match then {
+        "Space" => Some(keyhook::VK_SPACE),
+        "Insert" => Some(keyhook::VK_INSERT),
+        _ => {
+            let mut chars = then.chars();
+            let first = chars.next()?;
+            let rest = chars.as_str();
 
-// ── On-demand cursor position ─────────────────────────────────────────────────
-
-/// Current cursor position in physical screen pixels.
-#[cfg(target_os = "windows")]
-pub fn cursor_pos() -> (f64, f64) {
-    #[repr(C)]
-    struct POINT { x: i32, y: i32 }
-    #[link(name = "user32")]
-    extern "system" {
-        fn GetCursorPos(point: *mut POINT) -> i32;
+            if rest.is_empty() {
+                return keyhook::vk_letter(first).or_else(|| keyhook::vk_digit(first));
+            }
+            // F1–F12. Reject anything `u8::parse` would otherwise accept, such as
+            // a leading '+' or whitespace, so the set matches SUPPORTED_THEN exactly.
+            if first == 'F' && rest.chars().all(|c| c.is_ascii_digit()) {
+                return keyhook::vk_function(rest.parse().ok()?);
+            }
+            None
+        }
     }
-    let mut p = POINT { x: 100, y: 100 };
-    unsafe { GetCursorPos(&mut p); }
-    (p.x as f64, p.y as f64)
-}
-
-#[cfg(not(target_os = "windows"))]
-pub fn cursor_pos() -> (f64, f64) {
-    (100.0, 100.0)
-}
-
-// ── Live Ctrl-key query ──────────────────────────────────────────────────────
-
-#[cfg(target_os = "windows")]
-fn ctrl_is_down() -> bool {
-    const VK_CONTROL: i32 = 0x11;
-    #[link(name = "user32")]
-    extern "system" {
-        fn GetAsyncKeyState(vkey: i32) -> i16;
-    }
-    (unsafe { GetAsyncKeyState(VK_CONTROL) } as u16 & 0x8000) != 0
-}
-
-#[cfg(not(target_os = "windows"))]
-fn ctrl_is_down() -> bool {
-    false
 }
 
 // ── Shared state ─────────────────────────────────────────────────────────────
 
 struct HotkeyState {
-    armed_prefix: Option<(Key, bool, Instant)>, // (prefix_key, requires_ctrl, arm_time)
+    armed_prefix: Option<(Vk, bool, Instant)>, // (prefix_key, requires_ctrl, arm_time)
     last_trigger_time: Option<Instant>,
     prefix_released: bool, // for double-tap key-repeat filtering
 }
@@ -258,28 +187,21 @@ impl HotkeyState {
 
 pub fn spawn_hotkey_listener(app: AppHandle, hotkeys: Arc<ArcSwap<ParsedHotkeys>>) {
     std::thread::Builder::new()
-        .name("rdev-listener".into())
+        .name("keyhook-listener".into())
         .spawn(move || {
-            let state = Arc::new(Mutex::new(HotkeyState::new()));
+            let state = Mutex::new(HotkeyState::new());
 
-            let _ = listen(move |event: Event| {
-                match event.event_type {
-                    EventType::KeyPress(key) => {
-                        on_key_press(key, &state, &app, &hotkeys);
-                    }
-                    EventType::KeyRelease(key) => {
-                        on_key_release(key, &state);
-                    }
-                    _ => {}
-                }
+            keyhook::install(move |event| match event {
+                KeyEvent::Press(key) => on_key_press(key, &state, &app, &hotkeys),
+                KeyEvent::Release(key) => on_key_release(key, &state),
             });
         })
-        .expect("failed to spawn rdev-listener thread");
+        .expect("failed to spawn keyhook-listener thread");
 }
 
 // ── Key release handler (for double-tap filtering) ───────────────────────────
 
-fn on_key_release(key: Key, state: &Arc<Mutex<HotkeyState>>) {
+fn on_key_release(key: Vk, state: &Mutex<HotkeyState>) {
     let mut s = state.lock().unwrap_or_else(|e| e.into_inner());
     // If the released key matches the armed prefix key, mark released
     if let Some((prefix_key, _, _)) = s.armed_prefix {
@@ -292,10 +214,10 @@ fn on_key_release(key: Key, state: &Arc<Mutex<HotkeyState>>) {
 // ── Key press handler ────────────────────────────────────────────────────────
 
 fn on_key_press(
-    key: Key,
-    state: &Arc<Mutex<HotkeyState>>,
+    key: Vk,
+    state: &Mutex<HotkeyState>,
     app: &AppHandle,
-    hotkeys: &Arc<ArcSwap<ParsedHotkeys>>,
+    hotkeys: &ArcSwap<ParsedHotkeys>,
 ) {
     let table = hotkeys.load();
     let now = Instant::now();
@@ -322,7 +244,7 @@ fn on_key_press(
 
             // Check if this key matches the "then" for this entry
             let key_matches = key == entry.then_key;
-            let ctrl_ok = !entry.then_requires_ctrl || ctrl_is_down();
+            let ctrl_ok = !entry.then_requires_ctrl || keyhook::ctrl_is_down();
 
             if key_matches && ctrl_ok {
                 // Double-tap: require a release between the two presses
@@ -344,7 +266,7 @@ fn on_key_press(
     }
 
     // Check if this key press matches any prefix → arm
-    let ctrl_down = ctrl_is_down();
+    let ctrl_down = keyhook::ctrl_is_down();
     for entry in &table.entries {
         let prefix_matches = key == entry.prefix.key;
         let ctrl_ok = !entry.prefix.requires_ctrl || ctrl_down;
@@ -360,6 +282,104 @@ fn on_key_press(
     if !table.no_reset_keys.contains(&key) {
         s.armed_prefix = None;
         s.prefix_released = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The exact set `SUPPORTED_THEN` in `frontend/settings.js` offers. A name
+    /// accepted there but rejected here saves fine and then never fires, so this
+    /// list is the contract between the two.
+    fn supported_then_names() -> Vec<String> {
+        let mut names = vec![
+            "RCtrl".to_string(),
+            "RShift".to_string(),
+            "Space".to_string(),
+            "Insert".to_string(),
+        ];
+        names.extend(('A'..='Z').map(|c| c.to_string()));
+        names.extend(('0'..='9').map(|c| c.to_string()));
+        names.extend((1..=12).map(|n| format!("F{n}")));
+        names
+    }
+
+    #[test]
+    fn every_frontend_then_key_is_accepted() {
+        for name in supported_then_names() {
+            assert!(
+                is_supported_then(&name),
+                "settings.js offers {name:?} but the backend rejects it"
+            );
+        }
+    }
+
+    #[test]
+    fn every_accepted_then_key_resolves_to_a_real_vk() {
+        for name in supported_then_names() {
+            let (vk, _) = parse_then(&name, "Ctrl+C");
+            assert_ne!(vk, 0, "{name:?} resolved to 0, which no key event carries");
+        }
+    }
+
+    #[test]
+    fn unsupported_then_keys_are_rejected() {
+        // F0/F13 are out of range; the rest are shapes a looser parser would let
+        // through (whitespace, sign, leading zero, lowercase, non-ASCII digits).
+        for name in [
+            "", "F0", "F13", "F 1", "F+1", "F١", "LCtrl", "Up", "Numpad0", "c", "AB", " C",
+        ] {
+            assert!(!is_supported_then(name), "{name:?} should be unsupported");
+        }
+    }
+
+    #[test]
+    fn letters_and_digits_map_to_ascii_vk() {
+        assert_eq!(map_then_key("C"), Some(keyhook::VK_C));
+        assert_eq!(map_then_key("A"), Some(0x41));
+        assert_eq!(map_then_key("Z"), Some(0x5A));
+        assert_eq!(map_then_key("0"), Some(0x30));
+        assert_eq!(map_then_key("9"), Some(0x39));
+        assert_eq!(map_then_key("F1"), Some(0x70));
+        assert_eq!(map_then_key("F12"), Some(0x7B));
+    }
+
+    #[test]
+    fn default_bindings_parse_as_expected() {
+        let parsed = ParsedHotkeys::from_config(&HotkeyConfig::default());
+        assert_eq!(parsed.entries.len(), 3);
+
+        let translate = &parsed.entries[0];
+        assert_eq!(translate.action, Action::Translate);
+        assert_eq!(translate.prefix.key, keyhook::VK_C);
+        assert!(translate.prefix.requires_ctrl);
+        assert!(
+            translate.is_double_tap,
+            "Ctrl+C then C is a double-tap, so it must require a key release"
+        );
+
+        // Screenshot defaults to RCtrl twice: a modifier as its own "then".
+        let screenshot = &parsed.entries[2];
+        assert_eq!(screenshot.action, Action::Screenshot);
+        assert_eq!(screenshot.then_key, keyhook::VK_RCONTROL);
+        assert!(screenshot.is_double_tap);
+        assert!(!screenshot.then_requires_ctrl);
+    }
+
+    #[test]
+    fn modifiers_never_reset_the_armed_prefix() {
+        // Typing a modifier between prefix and "then" must not disarm, or no
+        // Ctrl-prefixed binding could ever complete.
+        let parsed = ParsedHotkeys::from_config(&HotkeyConfig::default());
+        for vk in [
+            keyhook::VK_CONTROL, keyhook::VK_LCONTROL, keyhook::VK_RCONTROL,
+            keyhook::VK_SHIFT, keyhook::VK_LSHIFT, keyhook::VK_RSHIFT,
+            keyhook::VK_MENU, keyhook::VK_LMENU, keyhook::VK_RMENU,
+            keyhook::VK_LWIN, keyhook::VK_RWIN, keyhook::VK_CAPITAL,
+        ] {
+            assert!(parsed.no_reset_keys.contains(&vk), "VK {vk:#04X} should not reset");
+        }
     }
 }
 
