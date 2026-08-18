@@ -31,6 +31,7 @@ const closeBtn        = document.getElementById('close-btn');
 const copyBtn         = document.getElementById('copy-btn');
 const copyLabel       = copyBtn.querySelector('.copy-label');
 const speakBtn        = document.getElementById('speak-btn');
+const resultArea      = document.getElementById('result-area');
 const errorBox        = document.getElementById('error-box');
 const errorSummary    = document.getElementById('error-summary');
 const errorDetails    = document.getElementById('error-details');
@@ -120,6 +121,27 @@ async function installBlurToClose(onBlur) {
   });
 }
 
+// ── Live resize to content ───────────────────────────────────────────────────
+// The window was built from an estimate. As chunks arrive and after Markdown
+// rendering the true content height is known — measure and ask the backend to
+// grow/shrink to fit, capped to the monitor. Uses the existing window chrome
+// size rather than a hardcoded constant, and coalesces rapid chunks.
+let lastReportedH = 0;
+let resizeTimer = null;
+const RESIZE_DEBOUNCE_MS = 120;
+function requestResize() {
+  if (isClosed) return;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(async () => {
+    if (isClosed) return;
+    const h = window.innerHeight - resultArea.clientHeight + resultArea.scrollHeight;
+    if (!Number.isFinite(h) || h < 80 || h > 3000) return;
+    if (Math.abs(h - lastReportedH) < 12) return;
+    lastReportedH = h;
+    try { await invoke('resize_translate_popup', { contentLogicalH: h }); } catch (_e) {}
+  }, RESIZE_DEBOUNCE_MS);
+}
+
 // ── Stream state ──────────────────────────────────────────────────────────────
 // Module-scoped because a retry runs a second stream through the same handlers.
 let streamStarted = false;
@@ -128,6 +150,7 @@ let failed = false;
 
 // Return the popup to its loading state so another stream can render into it.
 function resetForStream() {
+  lastReportedH = 0;
   streamStarted = false;
   fullText = '';
   failed = false;
@@ -170,9 +193,10 @@ async function init() {
     // while streaming (partial Markdown renders poorly).
     fullText += event.payload;
     translationText.textContent = fullText;
+    requestResize();
   });
 
-  await listen('translate://error', (event) => showError(event.payload));
+  await listen('translate://error', (event) => { showError(event.payload); requestResize(); });
 
   await listen('translate://done', () => {
     // A failed request already rendered its own state; leave it alone.
@@ -186,8 +210,9 @@ async function init() {
     // input renders to an empty string, which is harmless.
     translationText.innerHTML = renderMarkdown(fullText);
     translationText.classList.add('rendered');
-    // Enable copy now that the full result is available (disabled while streaming)
     if (fullText.trim()) copyBtn.disabled = false;
+    requestResize();
+    requestAnimationFrame(requestResize);
   });
 
   retryBtn.addEventListener('click', () => {

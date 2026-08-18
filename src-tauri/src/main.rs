@@ -6,8 +6,10 @@ mod clipboard;
 mod config;
 mod hotkey;
 mod keyhook;
+mod popup_sizing;
 mod screenshot;
 mod tts;
+mod window_state;
 mod windows;
 
 use arc_swap::ArcSwap;
@@ -362,6 +364,16 @@ fn tts_stop(state: tauri::State<'_, tts::TtsHandle>) {
     state.stop();
 }
 
+// ── Translate popup resize ────────────────────────────────────────────────────
+
+/// Live resize request from the popup webview: it has measured its content and
+/// asks the window to grow/shrink to fit, capped to the current monitor.
+/// Safe to call after the popup closed (no-op).
+#[tauri::command]
+fn resize_translate_popup(app: AppHandle, content_logical_h: f64) -> Result<(), String> {
+    windows::resize_translate_popup_to_content(&app, content_logical_h)
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 fn main() {
@@ -495,7 +507,8 @@ fn main() {
             translate_retry,
             test_connection,
             tts_speak,
-            tts_stop
+            tts_stop,
+            resize_translate_popup
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

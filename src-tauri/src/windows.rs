@@ -1,6 +1,8 @@
 //! Window management — create/show translation popup and settings windows.
 
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Instant;
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
 
 // ── Cursor-anchored popups ────────────────────────────────────────────────────
@@ -22,22 +24,17 @@ struct PopupSpec {
     skip_taskbar: bool,
 }
 
-/// Build, position, and show a frameless popup anchored to the cursor.
+/// Build a frameless popup anchored to the cursor, still hidden.
 ///
 /// Built hidden so it can be placed by PHYSICAL pixel before first paint
 /// (`keyhook::cursor_pos` reports physical, the builder's `position()` takes
 /// logical) — otherwise it flashes at the wrong spot on high-DPI displays.
-fn show_cursor_popup(
-    app: &AppHandle,
-    spec: PopupSpec,
-    cursor_x: f64,
-    cursor_y: f64,
-) -> Result<(), String> {
+fn build_cursor_popup(app: &AppHandle, spec: &PopupSpec) -> Result<tauri::WebviewWindow, String> {
     if let Some(existing) = app.get_webview_window(spec.label) {
         let _ = existing.close();
     }
 
-    let window = WebviewWindowBuilder::new(app, spec.label, WebviewUrl::App(spec.url.into()))
+    let window = WebviewWindowBuilder::new(app, spec.label, WebviewUrl::App(spec.url.clone().into()))
         .title(spec.title)
         .inner_size(spec.width, spec.height)
         .min_inner_size(spec.min_width, spec.min_height)
@@ -63,15 +60,133 @@ fn show_cursor_popup(
         }
     });
 
-    position_at_cursor(&window, spec.width, spec.height, cursor_x, cursor_y);
+    Ok(window)
+}
 
+fn show_built_popup(
+    window: &tauri::WebviewWindow,
+    logical_w: f64,
+    logical_h: f64,
+    cursor_x: f64,
+    cursor_y: f64,
+) {
+    position_at_cursor(window, logical_w, logical_h, cursor_x, cursor_y);
     let _ = window.show();
     let _ = window.set_focus();
+}
 
+fn show_cursor_popup(
+    app: &AppHandle,
+    spec: PopupSpec,
+    cursor_x: f64,
+    cursor_y: f64,
+) -> Result<(), String> {
+    let window = build_cursor_popup(app, &spec)?;
+    show_built_popup(&window, spec.width, spec.height, cursor_x, cursor_y);
     Ok(())
 }
 
 // ── Translation popup ─────────────────────────────────────────────────────────
+
+const TRANSLATE_LABEL: &str = "translate-popup";
+
+/// Flag + expiry for programmatic resizes (estimate + live-grow). A plain
+/// boolean is racy: the Resized event can arrive after we clear the flag.
+///
+/// `translate_popup_mark_programmatic` records `Instant::now() + 500ms`; the
+/// persistence handler skips Resized events while `deadline` is still in the
+/// future. Cheap to read, no contention in the common path.
+fn translate_popup_programmatic_deadline() -> Arc<Mutex<Option<Instant>>> {
+    static DL: OnceLock<Arc<Mutex<Option<Instant>>>> = OnceLock::new();
+    DL.get_or_init(|| Arc::new(Mutex::new(None))).clone()
+}
+
+fn translate_popup_mark_programmatic() {
+    let dl = translate_popup_programmatic_deadline();
+    let mut g = dl.lock().unwrap_or_else(|e| e.into_inner());
+    *g = Some(Instant::now() + std::time::Duration::from_millis(600));
+}
+
+fn translate_popup_is_programmatic() -> bool {
+    let dl = translate_popup_programmatic_deadline();
+    let g = dl.lock().unwrap_or_else(|e| e.into_inner());
+    matches!(*g, Some(t) if Instant::now() < t)
+}
+
+/// Throttle disk writes from rapid Resized events during a drag-resize.
+fn translate_popup_last_persist() -> Arc<Mutex<Option<Instant>>> {
+    static LAST: OnceLock<Arc<Mutex<Option<Instant>>>> = OnceLock::new();
+    LAST.get_or_init(|| Arc::new(Mutex::new(None))).clone()
+}
+
+/// Logical height of the monitor under the cursor, used for capping the popup.
+fn cursor_monitor_logical_height(window: &tauri::WebviewWindow, cursor_x: f64, cursor_y: f64) -> f64 {
+    if let Some(monitor) = window.monitor_from_point(cursor_x, cursor_y).ok().flatten() {
+        let scale = monitor.scale_factor().max(0.5);
+        return (monitor.size().height as f64 / scale).max(crate::popup_sizing::MIN_H + 80.0);
+    }
+    // Fallback: assume a 900px-tall monitor at the window's own scale.
+    let scale = window.scale_factor().unwrap_or(1.0).max(0.5);
+    900.0 / scale
+}
+
+fn resolve_translate_popup_size(
+    original: &str,
+    cursor_x: f64,
+    cursor_y: f64,
+    window: &tauri::WebviewWindow,
+) -> (f64, f64) {
+    let monitor_h = cursor_monitor_logical_height(window, cursor_x, cursor_y);
+
+    // A previously persisted manual resize wins over the estimate.
+    if let Some(saved) = crate::window_state::load_translate_popup_size() {
+        let w = saved.width.clamp(crate::popup_sizing::MIN_W, 1200.0);
+        let h = saved.height.clamp(
+            crate::popup_sizing::MIN_H,
+            crate::popup_sizing::cap_height(f64::MAX, monitor_h),
+        );
+        return (w, h);
+    }
+
+    let h = crate::popup_sizing::estimate_popup_height(original, monitor_h);
+    (crate::popup_sizing::DEFAULT_W, h)
+}
+
+/// Persist the user's manual drag-resize of the translate popup.
+/// Called on WindowEvent::Resized. Skips programmatic resizes (flag) and
+/// throttles disk writes to at most once per 400ms.
+fn install_translate_popup_resize_persistence(window: &tauri::WebviewWindow) {
+    let win = window.clone();
+    let last = translate_popup_last_persist();
+    window.on_window_event(move |event| {
+        let tauri::WindowEvent::Resized(tauri::PhysicalSize { width, height }) = event else {
+            return;
+        };
+        if translate_popup_is_programmatic() {
+            return;
+        }
+        {
+            let mut guard = last.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(t) = *guard {
+                if t.elapsed().as_millis() < 400 {
+                    return;
+                }
+            }
+            *guard = Some(Instant::now());
+        }
+        let scale = win.scale_factor().unwrap_or(1.0).max(0.5);
+        let logical = crate::window_state::LogicalSize {
+            width: *width as f64 / scale,
+            height: *height as f64 / scale,
+        };
+        if !(crate::popup_sizing::MIN_W..=1600.0).contains(&logical.width)
+            || !(crate::popup_sizing::MIN_H..=1200.0).contains(&logical.height)
+        {
+            return;
+        }
+        let _ = crate::window_state::save_translate_popup_size(logical);
+    });
+}
 
 /// Create and show the translation popup near the cursor.
 /// `original`: captured text (may be truncated in HTML layer)
@@ -96,21 +211,111 @@ pub fn show_translate_popup(
         url_encode(target_language)
     );
 
-    show_cursor_popup(
-        app,
-        PopupSpec {
-            label: "translate-popup",
-            title: "Quick Translator",
-            url,
-            width: 460.0,
-            height: 220.0,
-            min_width: 360.0,
-            min_height: 160.0,
-            skip_taskbar: true,
-        },
-        cursor_x,
-        cursor_y,
-    )
+    // Build hidden with a placeholder size so we have a WebviewWindow handle to
+    // query the cursor monitor's scale. The real size is applied before `show()`,
+    // so there is still no flash.
+    let spec = PopupSpec {
+        label: TRANSLATE_LABEL,
+        title: "Quick Translator",
+        url,
+        width: crate::popup_sizing::DEFAULT_W,
+        height: 220.0,
+        min_width: crate::popup_sizing::MIN_W,
+        min_height: crate::popup_sizing::MIN_H,
+        skip_taskbar: true,
+    };
+    let window = build_cursor_popup(app, &spec)?;
+
+    let (target_w, target_h) = resolve_translate_popup_size(original, cursor_x, cursor_y, &window);
+
+    // Apply the resolved size if it differs from the placeholder.
+    if (target_w - spec.width).abs() > 0.5 || (target_h - spec.height).abs() > 0.5 {
+        let scale = window
+            .monitor_from_point(cursor_x, cursor_y)
+            .ok()
+            .flatten()
+            .map(|m| m.scale_factor())
+            .or_else(|| window.scale_factor().ok())
+            .unwrap_or(1.0)
+            .max(0.5);
+        translate_popup_mark_programmatic();
+        let _ = window.set_size(PhysicalSize::new(
+            (target_w * scale).round() as u32,
+            (target_h * scale).round() as u32,
+        ));
+    }
+
+    // Add a second listener for manual-resize persistence; the Destroyed
+    // listener installed by build_cursor_popup stays active alongside it
+    // (on_window_event appends rather than replaces).
+    install_translate_popup_resize_persistence(&window);
+
+    show_built_popup(&window, target_w, target_h, cursor_x, cursor_y);
+    Ok(())
+}
+
+/// Handle the frontend's live resize request: the webview has measured its
+/// content and asks the window to grow/shrink to fit, capped to the current
+/// monitor. Safe to call after the popup has closed (becomes a no-op).
+pub fn resize_translate_popup_to_content(app: &AppHandle, desired_logical_h: f64) -> Result<(), String> {
+    if !desired_logical_h.is_finite() || !(80.0..=3000.0).contains(&desired_logical_h) {
+        return Ok(());
+    }
+    let Some(window) = app.get_webview_window(TRANSLATE_LABEL) else {
+        return Ok(());
+    };
+
+    let scale = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .map(|m| m.scale_factor())
+        .or_else(|| window.scale_factor().ok())
+        .unwrap_or(1.0)
+        .max(0.5);
+    let monitor_h = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .map(|m| m.size().height as f64 / m.scale_factor())
+        .unwrap_or(900.0);
+
+    let capped = desired_logical_h.clamp(
+        crate::popup_sizing::MIN_H,
+        (monitor_h * crate::popup_sizing::MAX_RATIO).floor().max(crate::popup_sizing::MIN_H),
+    );
+
+    let current_ph = window.inner_size().map(|s| s.height as f64).unwrap_or(capped * scale);
+    let current_logical_h = current_ph / scale;
+    if (capped - current_logical_h).abs() < 8.0 {
+        return Ok(());
+    }
+
+    let current_w_logical = window
+        .inner_size()
+        .map(|s| s.width as f64 / scale)
+        .unwrap_or(crate::popup_sizing::DEFAULT_W);
+    let target_ph = (capped * scale).round() as u32;
+    let target_pw = (current_w_logical * scale).round() as u32;
+
+    translate_popup_mark_programmatic();
+    let _ = window.set_size(PhysicalSize::new(target_pw, target_ph));
+
+    // Re-clamp Y so a growth does not push the bottom off-screen. Keep X.
+    if let Ok(pos) = window.outer_position() {
+        if let Some(monitor) = window.current_monitor().ok().flatten() {
+            let m_pos = monitor.position();
+            let m_size = monitor.size();
+            let monitor_bottom = m_pos.y as f64 + m_size.height as f64;
+            let popup_bottom = pos.y as f64 + target_ph as f64;
+            if popup_bottom > monitor_bottom {
+                let new_y = monitor_bottom - target_ph as f64 - 10.0 * scale;
+                let clamped_y = new_y.max(m_pos.y as f64 + 10.0 * scale);
+                let _ = window.set_position(PhysicalPosition::new(pos.x as f64, clamped_y));
+            }
+        }
+    }
+    Ok(())
 }
 
 // ── Chat popup ────────────────────────────────────────────────────────────────
