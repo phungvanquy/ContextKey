@@ -1,13 +1,16 @@
 # translate-hotkey Specification
 
 ## Purpose
-TBD - created by archiving change rewrite-rust-tauri-stage1. Update Purpose after archive.
+
+Defines the translation shortcut, clipboard capture, and feedback when no text is available.
+
 ## Requirements
+
 ### Requirement: Double Ctrl+C triggers translation
 
 The translate action SHALL be triggered by the two-step sequence stored in the `hotkeys.translate` config entry, defaulting to `Ctrl+C` → `C` within 600ms. It MUST NOT be hardcoded — the double Ctrl+C is now the default binding rather than the only one.
 
-The trigger continues to share the single `rdev::listen` thread and the debounce state with every other action; the Tauri global-shortcut plugin MUST NOT be used, since it cannot express a two-step sequence.
+All actions SHALL share the owned Windows keyboard hook in `keyhook.rs` and the debounce state in `hotkey.rs`. The hook SHALL remain passive so normal keyboard input continues to reach the foreground application.
 
 #### Scenario: Default binding preserves prior behavior
 
@@ -22,16 +25,16 @@ The trigger continues to share the single `rdev::listen` thread and the debounce
 #### Scenario: Clipboard capture unchanged
 
 - **WHEN** the translate action fires
-- **THEN** the selection is read via the existing `get_clipboard_after_copy` polling, since the whitelisted prefixes are themselves copy operations
+- **THEN** text is read through `get_clipboard_after_copy`; modifier-only prefixes do not copy a selection, so those bindings use text already on the clipboard
 
 ### Requirement: Clipboard capture after copy
 
-When the translate flow fires, the application SHALL read the freshly copied selection from the clipboard, reproducing the Python `get_clipboard_after_copy` polling behavior using the `arboard` crate.
+When the translation action fires, the application SHALL poll the clipboard through `arboard` for updated text, with a bounded fallback to its initial read.
 
 #### Scenario: Clipboard updates within the poll window
 
 - **WHEN** the translate flow reads the clipboard after a Ctrl+C copy
-- **THEN** it polls up to 10 times at 50ms intervals, and returns the new clipboard text (trimmed) as soon as the content differs from the value captured before the copy
+- **THEN** it polls up to 10 times at 20 ms intervals and returns trimmed, non-empty text as soon as the content differs from the initial clipboard read
 
 #### Scenario: Clipboard does not change
 
@@ -41,5 +44,5 @@ When the translate flow fires, the application SHALL read the freshly copied sel
 #### Scenario: Empty selection
 
 - **WHEN** the resolved clipboard text is empty
-- **THEN** the translate flow does not open a popup or issue an API request
-
+- **THEN** the translate flow does not open a translation popup or issue an API request
+- **AND** a brief notice near the cursor explains that no text was selected

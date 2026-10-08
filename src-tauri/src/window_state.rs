@@ -1,14 +1,14 @@
 //! Persistence for the translate-popup's manually-resized size.
 //!
-//! Stored beside the main config (<home>/.quicktranslator_window_state.json) so
-//! the Python config file is not extended. Logical pixels only; validated on
+//! Stored beside the main config (<home>/.contextkey_window_state.json).
+//! Imports the legacy file on first load. Logical pixels only; validated on
 //! load so a corrupted/tampered file silently falls back to the estimate.
 
 use std::fs;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
-const FILE_NAME: &str = ".quicktranslator_window_state.json";
+const FILE_NAME: &str = ".contextkey_window_state.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogicalSize {
@@ -30,7 +30,11 @@ pub fn state_path() -> PathBuf {
 /// Load the persisted translate-popup size. Returns `None` on any malformed,
 /// missing, or out-of-range data.
 pub fn load_translate_popup_size() -> Option<LogicalSize> {
-    let text = fs::read_to_string(state_path()).ok()?;
+    let text = crate::storage::read_with_legacy(
+        &state_path(),
+        ".quicktranslator_window_state.json",
+    )
+    .ok()?;
     let state: WindowState = serde_json::from_str(&text).ok()?;
     let size = state.translate_popup?;
     if !size.width.is_finite() || !size.height.is_finite() {

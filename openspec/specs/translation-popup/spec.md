@@ -1,11 +1,14 @@
 # translation-popup Specification
 
 ## Purpose
-TBD - created by archiving change rewrite-rust-tauri-stage1. Update Purpose after archive.
+
+Defines the translation window, adaptive sizing, persistence, rendering, and user controls.
+
 ## Requirements
+
 ### Requirement: Popup appearance and placement
 
-The application SHALL show translation results in a frameless, always-on-top, resizable window positioned near the mouse cursor, styled with the GitHub-dark palette carried over from the Python `constants.py`.
+The application SHALL show translation results in a frameless, always-on-top, resizable window positioned near the mouse cursor, styled with the shared light and dark theme tokens in `frontend/theme.css`.
 
 #### Scenario: Popup opens near the cursor
 
@@ -50,9 +53,17 @@ The window SHALL size to its content: an estimate derived from the source text l
 #### Scenario: Manually resized size is remembered
 
 - **WHEN** the user drag-resizes the translate popup
-- **THEN** the logical size is saved to `~/.quicktranslator_window_state.json` (atomic write, throttled to one write per 400ms), with programmatic resizes excluded by a deadline guard
+- **THEN** the logical size is saved to `~/.contextkey_window_state.json` (atomic write, throttled to one write per 400ms), with programmatic resizes excluded by a deadline guard
 - **AND** the next translate popup opens at the persisted size, clamped to the current monitor's height and to 1200×1200 limits, instead of the estimate
 - **AND** an invalid or missing state file silently falls back to the estimate
+
+#### Scenario: Legacy popup size is imported
+
+- **WHEN** `~/.contextkey_window_state.json` is missing and `~/.quicktranslator_window_state.json` is readable
+- **THEN** the legacy text is copied to the ContextKey path and loaded using the existing size validation
+- **AND** the legacy file remains unchanged
+- **AND** an existing ContextKey file always takes priority, including when malformed
+- **AND** if the copy cannot be saved, the legacy data is still used for that session
 
 #### Scenario: Popup is resizable with sensible minimum
 
@@ -111,4 +122,3 @@ The popup SHALL provide a control to copy the full translation result to the sys
 
 - **WHEN** the translation is still streaming or no text has been produced
 - **THEN** the copy control is disabled or non-functional so an empty/partial result cannot be copied
-

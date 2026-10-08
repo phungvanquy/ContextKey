@@ -1,11 +1,14 @@
 # chat-markdown Specification
 
 ## Purpose
-TBD - created by archiving change stage2-chat-popup. Update Purpose after archive.
+
+Defines how assistant responses render readable Markdown while treating model-provided HTML as text.
+
 ## Requirements
+
 ### Requirement: Markdown rendering in assistant messages
 
-Assistant messages SHALL render Markdown, reproducing the formatting the Python `render_markdown_to_text` supported: bold, italic, combined bold+italic, inline code, fenced code blocks, headings (h1–h3), and bullet / ordered lists. Because the popup is a webview, rendering produces styled HTML rather than tk.Text tags.
+Assistant messages SHALL render Markdown as styled HTML: bold, italic, combined bold and italic, inline code, fenced code blocks, headings, and bullet or ordered lists. Untrusted HTML content SHALL be escaped before formatting.
 
 #### Scenario: Inline formatting
 
@@ -28,4 +31,3 @@ Assistant messages SHALL render Markdown, reproducing the formatting the Python 
 
 - **WHEN** assistant output contains HTML-like or script-like text
 - **THEN** it is rendered as text/markdown and NOT executed as live HTML/script in the webview
-

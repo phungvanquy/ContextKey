@@ -1,21 +1,38 @@
 # config-store Specification
 
 ## Purpose
-TBD - created by archiving change rewrite-rust-tauri-stage1. Update Purpose after archive.
+
+Defines settings, defaults, validation, persistence, and migration from the former application name.
+
 ## Requirements
+
 ### Requirement: Config file location and schema
 
-The application SHALL persist configuration at `~/.quicktranslator_config.json` using a schema and defaults identical to the Python `config.py`, so that an existing Python user's config file remains valid and interoperable.
+The application SHALL persist configuration at `~/.contextkey_config.json`, retaining the schema and defaults compatible with earlier releases. When this file is absent, the application SHALL import `~/.quicktranslator_config.json` without changing the legacy file.
 
 #### Scenario: Schema and defaults
 
 - **WHEN** configuration is represented in memory or written to disk
-- **THEN** it contains exactly these keys with these defaults: `api_key` (""), `base_url` ("https://api.openai.com/v1"), `target_language` ("Vietnamese"), `model` ("gpt-4o-mini"), `custom_prompt` (the translator template containing the `{target_language}` placeholder, matching `DEFAULT_PROMPT` in `config.py`)
+- **THEN** it contains `api_key` (empty), `base_url` (`https://api.openai.com/v1`), `target_language` (`Vietnamese`), `model` (`gpt-4o-mini`), `vision_model` (empty), `custom_prompt` (the built-in translation template), and `hotkeys`
+- **AND** the default hotkeys are translation `Ctrl+C` → `C` within 600 ms, chat `Ctrl+C` → `Space` within 600 ms, and screenshot `RCtrl` → `RCtrl` within 400 ms
 
 #### Scenario: Existing Python config keeps working
 
 - **WHEN** a config file previously written by the Python app is loaded
 - **THEN** it loads without error and all previously stored values are preserved
+
+#### Scenario: First ContextKey launch imports legacy settings
+
+- **WHEN** the ContextKey config file is missing and the legacy config file is readable
+- **THEN** its original text is copied to the new path and loaded with the existing parsing and hotkey-validation rules
+- **AND** the legacy file is retained unchanged
+- **AND** if the copy cannot be saved, the legacy data is still used for that session
+
+#### Scenario: Existing ContextKey settings take priority
+
+- **WHEN** the ContextKey config file already exists
+- **THEN** the legacy config is not imported, even if the current file is malformed or unreadable
+- **AND** the existing file is not overwritten during loading
 
 ### Requirement: Config load behavior
 
@@ -28,9 +45,10 @@ Loading SHALL merge file contents over the defaults so missing keys fall back to
 
 #### Scenario: Missing or malformed config file
 
-- **WHEN** the config file does not exist, or exists but cannot be parsed as JSON
+- **WHEN** neither current nor legacy config exists, or the chosen file cannot be parsed as JSON
 - **THEN** the in-memory config falls back to the full defaults
-- **AND** when the file was simply absent, a default config file is written to disk
+- **AND** when both files were absent, a default ContextKey config file is written to disk
+- **AND** malformed file contents are preserved for recovery
 
 ### Requirement: Config save behavior
 
@@ -48,13 +66,13 @@ The application SHALL provide a Settings window to view and edit the core creden
 #### Scenario: Edit and save
 
 - **WHEN** the user opens Settings, edits `api_key`, `base_url`, `model`, and/or `target_language`, and saves
-- **THEN** the values are written to `~/.quicktranslator_config.json` in the save format above
+- **THEN** the values are written to `~/.contextkey_config.json` in the save format above
 - **AND** subsequent translations use the updated values (a new API client/credentials take effect without restarting the app)
 
 #### Scenario: Edit custom prompt
 
 - **WHEN** the user opens Settings, edits the custom prompt in a multi-line field, and saves
-- **THEN** the `custom_prompt` value is written to `~/.quicktranslator_config.json`
+- **THEN** the `custom_prompt` value is written to `~/.contextkey_config.json`
 - **AND** subsequent translations use the updated prompt (with `{target_language}` substituted where present)
 
 #### Scenario: Reset custom prompt to default
@@ -109,7 +127,7 @@ The config file SHALL hold a `hotkeys` object with one entry per action (`transl
 #### Scenario: Round-trip
 
 - **WHEN** hotkeys are saved from Settings
-- **THEN** they are written to `~/.quicktranslator_config.json` and reloaded on next start
+- **THEN** they are written to `~/.contextkey_config.json` and reloaded on next start
 
 #### Scenario: Partial hotkey block
 
@@ -139,4 +157,3 @@ The config SHALL hold a `vision_model` string, optional on read and defaulting t
 
 - **WHEN** the user tests the connection with a `vision_model` set
 - **THEN** both the main model and the vision model are tested, since either can be misconfigured independently
-

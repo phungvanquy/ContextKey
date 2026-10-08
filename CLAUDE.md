@@ -1,9 +1,18 @@
-# Quick Translator — Project Memory
+# ContextKey — Project Memory
 
 ## Overview
-Desktop translator & AI chat assistant in Rust + Tauri 2.x. Highlight text, press a hotkey, get a streaming translation or a chat popup. Small binary, low idle footprint, compile-time safety.
+Desktop AI assistant in Rust + Tauri 2.x for translation, selected-text chat, and screenshot questions. Small binary, low idle footprint, compile-time safety. Tagline: "Understanding, a shortcut away."
 
-Everything is built and CI-green: translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS read-aloud, configurable hotkeys, screenshot → vision chat. v0.4.0 is released and its features were exercised on real Windows without a failure.
+Repository: `git@github.com:phungvanquy/ContextKey.git` (https://github.com/phungvanquy/ContextKey). Product name: `ContextKey`; Cargo package and executable: `contextkey`; Tauri identifier: `com.contextkey.desktop`. Archived change records retain the names and paths used when those changes shipped.
+
+v0.4.0 shipped translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS read-aloud, configurable hotkeys, and screenshot → vision chat; its features were exercised on real Windows without a failure. The ContextKey rename and saved-data import require the new Windows checks in `openspec/QA-CHECKLIST.md` before release.
+
+## Documentation
+
+- [README](Readme.md): installation, shortcuts, settings, storage, upgrades, and troubleshooting.
+- [Development guide](docs/DEVELOPMENT.md): prerequisites, architecture, local commands, CI, and icon maintenance.
+- [Release validation](openspec/QA-CHECKLIST.md): manual Windows checks and historical results.
+- [Behavior specifications](openspec/specs/): current feature requirements; archived changes preserve implementation history.
 
 ## Architecture
 
@@ -13,10 +22,12 @@ Everything is built and CI-green: translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS
 | Module | Responsibility |
 |---|---|
 | `main.rs` | Bootstrap: single-instance plugin, config load, tray, hook install, Tauri commands, translate/chat/screenshot triggers, overlay-select handler |
-| `config.rs` | `Config` struct, load/save (`~/.quicktranslator_config.json`), `ConfigState` (Mutex) |
+| `config.rs` | `Config` struct, load/save (`~/.contextkey_config.json`), `ConfigState` (Mutex) |
+| `storage.rs` | Imports legacy saved files when ContextKey files are absent; preserves existing files and original contents |
+| `window_state.rs` | Validated popup-size persistence (`~/.contextkey_window_state.json`) |
 | `keyhook.rs` | The app's whole input FFI: owns the `WH_KEYBOARD_LL` hook, VK constants, `cursor_pos()`, `ctrl_is_down()`. Non-Windows stubs so `cargo check` runs on Linux |
 | `hotkey.rs` | Table-driven two-step state machine over `keyhook` events, hot-swapped from config via `ArcSwap`; unit-tested against the `SUPPORTED_THEN` contract |
-| `clipboard.rs` | `get_clipboard_after_copy`: polls arboard ≤10× @50ms for changed text |
+| `clipboard.rs` | `get_clipboard_after_copy`: polls arboard up to 10 times at 20ms intervals for changed text |
 | `api.rs` | reqwest + SSE to chat/completions; emits `<flow>://chunk\|done\|error`; routes to `vision_model` when the history carries an image; `StreamRegistry` holds per-window cancellation flags |
 | `screenshot.rs` | xcap multi-monitor capture, crop, JPEG encode (q60 preview / q80 ≤1568px for API); `ScreenshotStore` holds captures in RAM only |
 | `tts.rs` | Read-aloud via the `tts` crate (SAPI on Windows); single active utterance |
@@ -57,7 +68,7 @@ Everything is built and CI-green: translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS
 - **The frontend owns chat history and is the ONLY source of the question.** `chat_send` deliberately takes no `question` parameter — the history's last entry *is* the question. Passing both made every turn send it twice.
 - **Cancellation flags belong to the window, not the stream** (`api::StreamRegistry`). Popup labels are fixed constants, so keying by label alone let a closed window's late `Destroyed` cancel the *next* window's stream. `claim` (on window build) hands each window its own flag and retires the previous one. Checked between reads, never mid-parse.
 - Errors ride `<flow>://error` with `{summary, detail, retryable}`, NOT the chunk event — on the chunk event they were indistinguishable from model output and couldn't be styled or retried. Auth/404 are non-retryable.
-- Config is interoperable with the old Python app (`~/.quicktranslator_config.json`). `http://` base_url saves with a non-blocking "API key travels unencrypted" warning.
+- Config keeps the old Python-compatible schema. On first load, `storage::read_with_legacy` copies `~/.quicktranslator_config.json` to `~/.contextkey_config.json` only if the new file is missing; popup size migrates similarly from `~/.quicktranslator_window_state.json` to `~/.contextkey_window_state.json`. Legacy files are never changed. Existing ContextKey files win even if malformed; import-write failures still allow legacy data to load for that session. `http://` base_url saves with a non-blocking "API key travels unencrypted" warning.
 
 **Windows / UI (Tauri gotchas)**
 - **Never `sleep()` then `emit()` at a window you just created.** This has shipped three times (translate chunks, overlay preview, chat image). Events are dropped, not queued, and WebView2 takes 100–300ms to start — the payload vanishes silently. Use a handshake (`popup://ready`) or better a **pull**: store the payload in managed state and let the frontend `invoke` for it once listeners are up (`get_overlay_preview`, `take_pending_image`). `take_pending_image` *takes* rather than clones, so a stale crop can't re-attach to a later session.
@@ -75,20 +86,20 @@ Everything is built and CI-green: translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS
 - Indigo accent (`#7C6BFF` dark / `#6D5AE6` light); dark+light comes purely from `@media (prefers-color-scheme)` in `theme.css` — one token set, no toggle, no JS. No literal hex outside `theme.css` except `#ffffff` on colored buttons.
 - All glyphs are one inline-SVG `<symbol>` sprite (`icons.js`) used via `<use href="#ic-…"/>` with `currentColor`, so they re-tint per theme/state. Paths adapted from MIT Lucide.
 - Popups use `.transparent(true)` for rounded corners + shadow via CSS (Settings stays decorated). **Unverified:** confirm on real Windows that transparency keeps shadow + always-on-top + positioning; else fall back to opaque + CSS `border-radius` and record it here.
-- App icon generated by committed `icons/generate_icon.py`. Tray uses `default_window_icon()`.
+- App icon generated by committed `icons/generate_icon.py` from the supplied `icons/brand.png` logo (1254×1254 original). The generator preserves the artwork and produces a 512×512 RGBA PNG plus Windows ICO sizes from 16×16 to 256×256. Tray uses `default_window_icon()`; the same assets brand the executable and installer.
 
 ## Manual QA
-`openspec/QA-CHECKLIST.md` (needs a real keyboard hook + API key; none of it is CI-verifiable). Work through it before tagging. As of v0.4.0 the interactive paths pass on real Windows; what remains unticked needs instrumentation — a proxy log for duplicate requests, an RSS watch for capture release, provider usage for cancellation.
+[Release validation](openspec/QA-CHECKLIST.md) requires a Windows desktop and an API endpoint for interactive checks. Checked items record v0.4.0 testing rather than a pass for the current build. Re-run affected checks before tagging, and use request logs, memory measurements, or provider diagnostics for checks that the UI cannot establish.
 
 ## Session Rules
 - **Interrupted sessions:** audit `git status` + `git diff --stat` first, read changed/new files, continue from where it stopped — never start from scratch.
-- **Codebase search — `auggie` first.** The `auggie` MCP server (`.mcp.json`) keeps a live semantic index. Call `codebase-retrieval` (`directory_path: /root/coding/quick-translator`) as the FIRST step for any "where/how does X work" question spanning files not yet read — one broad natural-language question beats several narrow ones or three rounds of grep. Do it unprompted before `/opsx:propose`, `/opsx:apply`, `/opsx:explore`, when resuming a session, and for any bug report naming a symptom rather than a file.
+- **Codebase search — `auggie` first.** The `auggie` MCP server (`.mcp.json`) keeps a live semantic index. Call `codebase-retrieval` (`directory_path`: the absolute repository root from `git rev-parse --show-toplevel`) as the FIRST step for any "where/how does X work" question spanning files not yet read — one broad natural-language question beats several narrow ones or three rounds of grep. Do it unprompted before `/opsx:propose`, `/opsx:apply`, `/opsx:explore`, when resuming a session, and for any bug report naming a symptom rather than a file.
   - Skip it for a known symbol (`grep`), a known path (`Read`), or git history (not indexed). It reads the working tree only, so just-written edits may lag — confirm anything load-bearing with `Read` before editing.
   - `.augmentignore` excludes archived delta specs (verbatim duplicates of `openspec/specs/`, they crowded out real code), build output, and binary icons. It is read once at server start, so edits need an MCP restart (`/mcp` → reconnect).
 - **All project memory lives in this file** — do NOT use `~/.claude/` memory files.
 - **Dependencies — minimal, not zero.** Adding a crate is fine when it makes the project meaningfully better and is safe: actively maintained, widely used, trusted source, pinned version, checked against typosquatting. Prefer the lightest option; don't reinvent what a vetted crate does well.
 
 ## Roadmap / Known Gaps
-All shipped behavior is specced under `openspec/specs/`. Not built: translation history/log, source-language auto-detection.
-Known weak spots, unverified against current code — confirm before acting: clipboard capture is polling with a fixed retry budget (can return stale text); completion token cap is hardcoded (long replies truncate silently); the whole 50-message chat window is sent each turn; the API key sits in plaintext JSON (OS keychain would be better); the Settings window is fixed-size; test coverage is thin (`hotkey.rs` unit tests cover the VK/`SUPPORTED_THEN` contract — config/clipboard/SSE untested; CLAUDE.md previously claimed a Node markdown test, which is not in the tree).
+Behavior requirements are maintained under `openspec/specs/`, with historical decisions under `openspec/changes/archive/`. Not built: persistent translation history and a dedicated source-language detection feature.
+Known weak spots, unverified against current code — confirm before acting: clipboard capture is polling with a fixed retry budget (can return stale text); completion token cap is hardcoded (long replies truncate silently); the whole 50-message chat window is sent each turn; the API key sits in plaintext JSON (OS keychain would be better); the Settings window is fixed-size; unit tests cover hotkey mapping, popup sizing, and saved-data migration, while config behavior beyond migration, clipboard polling, and SSE parsing have limited coverage.
 If a keyboard hook still perturbs typing after `keyhook.rs`, the next lever is moving the state machine off the hook thread (ring buffer + worker), leaving the callback as "record VK, return" — deliberately deferred as unmeasured, see `ime-safe-keyboard-hook/design.md` D7.

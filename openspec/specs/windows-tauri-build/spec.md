@@ -1,48 +1,71 @@
-# windows-tauri-build Specification
+# Windows build and distribution specification
 
 ## Purpose
-TBD - created by archiving change rewrite-rust-tauri-stage1. Update Purpose after archive.
-## Requirements
-### Requirement: Windows CI build produces artifacts
 
-The GitHub Actions workflow SHALL build the Tauri application on `windows-latest` and upload the resulting Windows executable and installer as artifacts. Because the app cannot be built or run on the Linux dev environment, this CI build is the sole correctness gate and MUST actually compile the Rust code.
+Defines Windows builds, distribution artifacts, product identity, and application execution privileges.
+
+## Requirements
+
+### Requirement: Windows CI validates the application
+
+The GitHub Actions workflow SHALL run Rust unit tests and build the Tauri application on `windows-latest`. Interactive input and window behavior SHALL be validated separately on a Windows desktop.
 
 #### Scenario: Workflow triggers
 
-- **WHEN** code is pushed to `main` or `master`, or the workflow is manually dispatched
-- **THEN** the build job runs on `windows-latest`
+- **WHEN** code is pushed to `main` or `master`, a `v*` tag is pushed, or the workflow is manually dispatched
+- **THEN** the Windows build job runs
 
-#### Scenario: Rust compilation gate
+#### Scenario: Compilation and unit-test gate
 
-- **WHEN** the build job runs
-- **THEN** it installs a Rust toolchain and the Tauri build prerequisites, and compiles the `src-tauri` Rust crate in release mode
-- **AND** the job fails if the Rust code does not compile
+- **WHEN** the job runs
+- **THEN** it installs a stable Rust toolchain, runs `cargo test --bins` in `src-tauri`, and builds the application in release mode
+- **AND** a test or compilation failure fails the job
 
-#### Scenario: Artifacts uploaded
+#### Scenario: Branch artifacts
 
-- **WHEN** the Tauri build completes successfully
-- **THEN** the produced `.exe` and the installer (NSIS bundle) are uploaded as workflow artifacts with 30-day retention
+- **WHEN** a build completes for a non-tag reference
+- **THEN** `contextkey.exe` is uploaded as `ContextKey-Windows` and the NSIS installer is uploaded as `ContextKey-Setup`
+- **AND** both artifacts have a 30-day retention period
 
-#### Scenario: PyInstaller path removed
+#### Scenario: Tagged release
 
-- **WHEN** the workflow runs
-- **THEN** it does NOT invoke PyInstaller or Inno Setup (those steps are removed) — the build is entirely Tauri-based
+- **WHEN** a build completes for a version tag
+- **THEN** a non-draft GitHub release titled `ContextKey <tag>` is published in `phungvanquy/ContextKey` with the installer attached
+- **AND** separate Actions artifact uploads are skipped
 
-### Requirement: Windows admin elevation
+### Requirement: Application execution privileges
 
-The Tauri bundle SHALL request administrator elevation on Windows, replacing PyInstaller's `--uac-admin`, so the global keyboard hook can observe input directed at elevated windows.
+The Windows application SHALL use the `asInvoker` execution level and SHALL NOT require administrator privileges for ordinary operation.
 
-#### Scenario: Elevation manifest
+#### Scenario: Normal launch
 
-- **WHEN** the Windows executable is produced by the Tauri build
-- **THEN** its embedded manifest requests `requireAdministrator` execution level
+- **WHEN** the packaged application is launched normally
+- **THEN** the executable does not request administrator elevation
+
+#### Scenario: Elevated foreground application
+
+- **WHEN** an elevated application is in the foreground
+- **THEN** shortcuts may be unavailable to a normally launched ContextKey process
+- **AND** running ContextKey as administrator is a user-selected option for that session
 
 ### Requirement: Tauri bundle configuration
 
-The application SHALL be configured to bundle the frontend assets and the app icon without a JavaScript build step.
+The application SHALL bundle the static frontend and app icons without a JavaScript build step.
 
-#### Scenario: Frontend bundled
+#### Scenario: ContextKey product identity
 
 - **WHEN** the app is built
-- **THEN** the plain HTML/CSS/JS frontend assets and the app icon are bundled into the binary/installer, with no npm/node build step required
+- **THEN** the product name is `ContextKey`, the Cargo package and binary are `contextkey`, and the Tauri identifier is `com.contextkey.desktop`
+- **AND** the Windows manifest uses `com.contextkey.app` and describes the app as `ContextKey`
+- **AND** the versions in the Cargo manifest and Tauri configuration match
 
+#### Scenario: Frontend and icon assets
+
+- **WHEN** the app is built
+- **THEN** the HTML, CSS, and JavaScript under `frontend/` are bundled without an npm build step
+- **AND** the committed `icons/icon.png` and `icons/icon.ico` provide the app artwork without running the Python icon generator during the build
+
+#### Scenario: WebView2 installation
+
+- **WHEN** the installer needs to install WebView2
+- **THEN** it uses the configured `downloadBootstrapper` mode

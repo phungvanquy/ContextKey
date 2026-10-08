@@ -1,5 +1,5 @@
-//! Configuration management — parity with config.py
-//! Persists to ~/.quicktranslator_config.json
+//! Configuration management with compatibility for the former app's JSON schema.
+//! Persists to ~/.contextkey_config.json and imports the legacy file on first load.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -171,42 +171,38 @@ impl Default for Config {
 pub fn config_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".quicktranslator_config.json")
+        .join(".contextkey_config.json")
 }
 
 // ── Load (mirrors load_config in config.py) ───────────────────────────────────
 /// Load config from disk.
 /// - If file exists and parses: serde fills missing keys with defaults.
-/// - If file is absent: write defaults to disk, return defaults.
+/// - If only the legacy file exists: import it before applying the same validation.
+/// - If both files are absent: write defaults to disk, return defaults.
 /// - If file is malformed: return defaults WITHOUT overwriting.
 pub fn load() -> Config {
     let path = config_path();
 
-    if path.exists() {
-        match fs::read_to_string(&path) {
-            Ok(text) => {
-                match serde_json::from_str::<Config>(&text) {
-                    Ok(mut cfg) => {
-                        if let Err(errors) = cfg.hotkeys.validate() {
-                            eprintln!(
-                                "hotkey config invalid, using defaults: {}",
-                                errors.join("; ")
-                            );
-                            cfg.hotkeys = HotkeyConfig::default();
-                        }
-                        return cfg;
-                    }
-                    Err(_) => {
-                        // Malformed — return defaults, do NOT overwrite
-                        return Config::default();
-                    }
+    match crate::storage::read_with_legacy(&path, ".quicktranslator_config.json") {
+        Ok(text) => match serde_json::from_str::<Config>(&text) {
+            Ok(mut cfg) => {
+                if let Err(errors) = cfg.hotkeys.validate() {
+                    eprintln!(
+                        "hotkey config invalid, using defaults: {}",
+                        errors.join("; ")
+                    );
+                    cfg.hotkeys = HotkeyConfig::default();
                 }
+                return cfg;
             }
+            // Malformed — return defaults, do NOT overwrite.
             Err(_) => return Config::default(),
-        }
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => return Config::default(),
     }
 
-    // File absent — write defaults then return them
+    // Both files absent — write defaults then return them
     let defaults = Config::default();
     let _ = save_to_disk(&defaults); // best-effort; ignore error
     defaults

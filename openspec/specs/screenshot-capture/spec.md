@@ -1,11 +1,13 @@
 # screenshot-capture Specification
 
 ## Purpose
+
 Lets the user point at any region of the screen so it can be asked about, covering content that cannot be selected or copied — game UI, image-based PDFs, error dialogs, charts.
 
 Two ideas carry most of the design. **Freeze first:** capture every monitor before showing anything, so the overlay cannot appear in its own capture and transient content like an open menu survives. **Trust the capture, not the webview:** all geometry is derived from the captured image's own dimensions, because a scale factor reported by the webview can disagree with the monitor's real one, and a factor that is even slightly wrong produces a crop that silently looks zoomed in.
 
 ## Requirements
+
 ### Requirement: Freeze-first capture
 
 On the screenshot trigger the application SHALL capture every monitor FIRST, then display those captured images as the overlay background. The overlay MUST NOT be a transparent window over the live screen.
@@ -110,4 +112,3 @@ Captured and cropped images SHALL NOT be written to disk at any point. They are 
 
 - **WHEN** a new capture begins
 - **THEN** the previous captures are replaced rather than accumulating
-

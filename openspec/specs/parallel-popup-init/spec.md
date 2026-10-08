@@ -1,42 +1,53 @@
-# parallel-popup-init Specification
+# Popup initialization specification
 
 ## Purpose
-TBD - created by archiving change speed-up-popup-appearance. Update Purpose after archive.
+
+Defines clipboard polling and popup initialization order so input capture does not block the async runtime and streaming begins after window setup.
+
 ## Requirements
-### Requirement: Clipboard polling and window creation run concurrently
-The translate trigger path SHALL spawn clipboard polling and window creation as concurrent tasks, joining both before starting the API stream. The window creation MUST NOT depend on the clipboard result to begin.
 
-#### Scenario: Normal translate trigger
-- **WHEN** Ctrl+C+C fires and clipboard text is available within the poll budget
-- **THEN** the popup window is already built (hidden) by the time clipboard polling completes, and the combined latency is max(clipboard_time, window_time) rather than clipboard_time + window_time
+### Requirement: Translation clipboard capture runs off the async runtime
 
-#### Scenario: Clipboard returns empty
-- **WHEN** Ctrl+C+C fires but clipboard polling returns an empty string
-- **THEN** the trigger path returns early without starting a stream, and any pre-built window is either not shown or closed on the next trigger
+The translation trigger SHALL start clipboard polling in a blocking task. It SHALL register the frontend readiness listener before creating the popup and SHALL await the clipboard result before constructing the window URL that carries the selected text.
 
-### Requirement: Clipboard polling and window creation run concurrently for chat
-The chat trigger path SHALL apply the same concurrent pattern: clipboard polling and chat window creation run in parallel.
+#### Scenario: Normal translation trigger
 
-#### Scenario: Normal chat trigger
-- **WHEN** Ctrl+C+Space fires and clipboard text is available
-- **THEN** the chat popup is already built by the time clipboard completes, and both results are available before showing the window
+- **WHEN** the translation shortcut fires
+- **THEN** clipboard polling starts while the trigger prepares its readiness listener
+- **AND** the popup is created after the captured text is available
+- **AND** the trigger waits for `popup://ready`, with a two-second timeout, before starting the stream
 
-#### Scenario: Chat with empty selection
-- **WHEN** Ctrl+C+Space fires but clipboard returns empty
-- **THEN** the chat popup still opens in free-chat mode (empty selection is valid for chat)
+#### Scenario: Empty clipboard
 
-### Requirement: Clipboard poll interval is 20ms
-The clipboard polling loop SHALL sleep 20ms between attempts, with a maximum of 10 attempts (200ms total budget).
+- **WHEN** polling returns an empty string
+- **THEN** the readiness listener is removed and no translation window or API request is created
+- **AND** a brief notice explains that no text was selected
 
-#### Scenario: Fast clipboard update
-- **WHEN** the clipboard text changes within 20ms of the copy
-- **THEN** polling detects the change on the first or second iteration (~20-40ms)
+### Requirement: Chat receives its context before window creation
 
-#### Scenario: Slow clipboard producer
-- **WHEN** the clipboard text takes 150ms to propagate
-- **THEN** polling still catches it within the 200ms budget (iterations 7-8)
+The chat trigger SHALL start clipboard polling in a blocking task and await the result before opening the chat popup with its initial selected-text context.
 
-#### Scenario: Clipboard never updates
-- **WHEN** the clipboard does not change within 200ms
-- **THEN** the fallback (previous clipboard content) is returned after 10 iterations
+#### Scenario: Chat with copied text
 
+- **WHEN** the chat shortcut fires and clipboard text is available
+- **THEN** the captured text is passed to the popup when it is created
+- **AND** chat requests begin only when the frontend submits a question
+
+#### Scenario: Chat with empty clipboard
+
+- **WHEN** polling returns an empty string
+- **THEN** the chat popup opens in free-chat mode
+
+### Requirement: Clipboard polling has a bounded budget
+
+The clipboard polling loop SHALL sleep 20 ms between attempts, with a maximum of 10 attempts. The first non-empty value that differs from the initial read SHALL be returned after trimming whitespace.
+
+#### Scenario: Clipboard updates during polling
+
+- **WHEN** the clipboard changes within the polling budget
+- **THEN** the new text is returned on the next poll
+
+#### Scenario: Clipboard does not update
+
+- **WHEN** no different non-empty text is observed after 10 attempts
+- **THEN** the trimmed value from the initial clipboard read is returned

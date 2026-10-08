@@ -1,4 +1,4 @@
-name: Build Quick Translator (Tauri)
+name: Build ContextKey (Tauri)
 
 on:
   push:
@@ -34,14 +34,14 @@ jobs:
         with:
           workspaces: src-tauri
 
-      # Pure-logic tests (hotkey VK mapping ↔ the frontend's SUPPORTED_THEN set).
+      # Unit tests cover hotkey mapping, popup sizing, and saved-data migration.
       # Nothing here touches the hook itself — that needs a real desktop session,
       # see openspec/QA-CHECKLIST.md.
       - name: Run unit tests
         working-directory: src-tauri
         run: cargo test --bins
 
-      # On a tag push (v*), tauri-action builds AND publishes a draft GitHub
+      # On a tag push (v*), tauri-action builds AND publishes a GitHub
       # Release with the installer attached. On a branch push it only builds
       # (empty tagName → no release), and the artifacts are uploaded below.
       - name: Build Tauri app (release)
@@ -51,7 +51,7 @@ jobs:
         with:
           projectPath: src-tauri
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: ${{ github.ref_type == 'tag' && format('Quick Translator {0}', github.ref_name) || '' }}
+          releaseName: ${{ github.ref_type == 'tag' && format('ContextKey {0}', github.ref_name) || '' }}
           releaseDraft: false
           prerelease: false
 
@@ -62,14 +62,14 @@ jobs:
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v7
         with:
-          name: QuickTranslator-Windows
-          path: src-tauri/target/release/quick-translator.exe
+          name: ContextKey-Windows
+          path: src-tauri/target/release/contextkey.exe
           retention-days: 30
 
       - name: Upload NSIS installer artifact
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v7
         with:
-          name: QuickTranslator-Setup
+          name: ContextKey-Setup
           path: src-tauri/target/release/bundle/nsis/*.exe
           retention-days: 30

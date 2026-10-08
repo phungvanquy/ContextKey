@@ -1,16 +1,18 @@
 # hotkey-config Specification
 
 ## Purpose
-Lets users rebind every global hotkey without restarting the app, while keeping the bindings safe to leak.
 
-The constraint that shapes this whole capability: `rdev::listen` is passive and cannot suppress input, so every key in a hotkey also reaches the foreground application. That is why hotkeys are two-step rather than one-step, why prefixes come from a whitelist of keys whose solo press is harmless, and why the UI warns about side effects rather than pretending they don't happen.
+Defines configurable keyboard sequences, validation, and updates that take effect without restarting the app.
+
+The owned keyboard hook forwards input to the foreground application. Two-step sequences and a restricted set of prefixes reduce accidental activation; Settings explains when a binding can also affect the active application.
 
 ## Requirements
+
 ### Requirement: Two-step hotkey model
 
 Every hotkey SHALL be a two-step sequence: a `prefix` key/chord, followed by a `then` key, both within a time window (`window_ms`). A double-tap is the degenerate case where `prefix` and `then` resolve to the same key. One-step hotkeys MUST NOT be offered.
 
-The reason is that `rdev::listen` is passive and cannot suppress input, so every keystroke in a hotkey also reaches the foreground application. A one-step hotkey would therefore fire on an ordinary keypress and leak that key to whatever app is focused.
+The reason is that the owned keyboard hook is passive and forwards input, so every keystroke in a hotkey also reaches the foreground application. A one-step hotkey would therefore fire on an ordinary keypress and leak that key to whatever app is focused.
 
 #### Scenario: Two-step sequence fires
 
@@ -83,7 +85,7 @@ Config validation SHALL reject: a duplicate `(prefix, then)` pair across two act
 
 A saved hotkey table SHALL take effect without restarting the application or the listener thread. The parsed table MUST be readable by the hook callback without blocking.
 
-`rdev::listen` can only be called once per process and cannot be restarted, so the listener must outlive any config change. The hook callback runs inside a Windows low-level keyboard hook, which is dropped or unhooked if it exceeds `LowLevelHooksTimeout` (~300ms) — so the read must be wait-free rather than lock-based.
+A single owned keyboard hook remains installed while settings change. The callback reads the parsed hotkey table through `ArcSwap`; updating the table must not require restarting the listener or blocking the callback on a table lock.
 
 #### Scenario: New binding active immediately
 
@@ -123,4 +125,3 @@ The Settings UI SHALL provide a control that restores all hotkeys to their defau
 
 - **WHEN** the user activates reset
 - **THEN** all three actions are repopulated with their default prefix, then-key, and window
-

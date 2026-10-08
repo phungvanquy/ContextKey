@@ -3,10 +3,10 @@
   <assemblyIdentity
     version="1.0.0.0"
     processorArchitecture="*"
-    name="com.quicktranslator.app"
+    name="com.contextkey.app"
     type="win32"
   />
-  <description>Quick Translator</description>
+  <description>ContextKey</description>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
       <requestedPrivileges>

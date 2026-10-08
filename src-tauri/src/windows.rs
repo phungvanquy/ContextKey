@@ -216,7 +216,7 @@ pub fn show_translate_popup(
     // so there is still no flash.
     let spec = PopupSpec {
         label: TRANSLATE_LABEL,
-        title: "Quick Translator",
+        title: "ContextKey",
         url,
         width: crate::popup_sizing::DEFAULT_W,
         height: 220.0,
@@ -333,7 +333,7 @@ pub fn show_chat_popup(
         app,
         PopupSpec {
             label: "chat-popup",
-            title: "Quick Translator — Chat",
+            title: "ContextKey — Chat",
             url: format!("chat.html?selected={}", url_encode(selected)),
             width: 500.0,
             height: 580.0,
@@ -417,7 +417,7 @@ pub fn show_toast(app: &AppHandle, message: &str, cursor_x: f64, cursor_y: f64) 
     let url = format!("toast.html?message={}", url_encode(message));
 
     let window = match WebviewWindowBuilder::new(app, "toast", WebviewUrl::App(url.into()))
-        .title("Quick Translator")
+        .title("ContextKey")
         .inner_size(toast_w, toast_h)
         .decorations(false)
         .transparent(true)
@@ -449,7 +449,7 @@ pub fn show_settings_window(app: &AppHandle) -> Result<(), String> {
     }
 
     WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
-        .title("Quick Translator — Settings")
+        .title("ContextKey — Settings")
         .inner_size(520.0, 520.0)
         .decorations(true)
         .always_on_top(false)

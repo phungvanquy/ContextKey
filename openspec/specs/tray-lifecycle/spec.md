@@ -1,11 +1,14 @@
 # tray-lifecycle Specification
 
 ## Purpose
-TBD - created by archiving change rewrite-rust-tauri-stage1. Update Purpose after archive.
+
+Defines tray presence, Settings access, deliberate shutdown, and keyboard-hook cleanup.
+
 ## Requirements
+
 ### Requirement: System tray presence
 
-The application SHALL run as a background process with a system tray icon titled "Quick Translator" and no persistent main window.
+The application SHALL run as a background process with a system tray icon titled "ContextKey" and no persistent main window.
 
 #### Scenario: App starts and shows tray icon
 
@@ -39,6 +42,5 @@ The application SHALL release its OS-level resources on exit.
 #### Scenario: Shutdown releases the keyboard hook
 
 - **WHEN** the application exits (via tray Quit)
-- **THEN** the `rdev` keyboard listener thread is stopped or detached so no global hook is left dangling
+- **THEN** the owned Windows keyboard hook is explicitly uninstalled through `keyhook::uninstall`, leaving no active hook
 - **AND** the process terminates without leaving orphaned windows
-

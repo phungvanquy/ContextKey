@@ -1,17 +1,20 @@
 # chat-popup Specification
 
 ## Purpose
-TBD - created by archiving change stage2-chat-popup. Update Purpose after archive.
+
+Defines the chat window, conversation controls, image previews, and lifecycle behavior needed to keep an active conversation accessible.
+
 ## Requirements
+
 ### Requirement: Chat popup window
 
-The application SHALL open a frameless, always-on-top chat popup window anchored near the cursor when the chat flow triggers, mirroring the Python `show_chat_popup` layout: a draggable header (the only draggable zone), an optional selected-text context strip, a scrollable message transcript, and a text input bar pinned to the bottom.
+The application SHALL open a frameless, always-on-top chat popup window anchored near the cursor when the chat flow triggers, with a draggable header (the only draggable zone), an optional selected-text context strip, a scrollable message transcript, and a text input bar pinned to the bottom.
 
 #### Scenario: Popup opens near cursor, DPI-safe
 
 - **WHEN** the chat flow opens the popup
 - **THEN** the window appears near the current cursor position, clamped to the monitor under the cursor
-- **AND** positioning uses physical-pixel placement with the cursor monitor's scale factor (the same DPI-safe approach as the translate popup), never passing raw rdev coordinates to the builder's logical `position()`
+- **AND** positioning uses physical-pixel placement with the cursor monitor's scale factor (the same DPI-safe approach as the translate popup), never passing physical cursor coordinates to the builder's logical `position()`
 
 #### Scenario: Only the header is draggable
 
@@ -28,9 +31,11 @@ The application SHALL open a frameless, always-on-top chat popup window anchored
 
 #### Scenario: Close behaviors
 
-- **WHEN** the user presses Esc, clicks the close button, or the window loses focus by clicking outside it
+- **WHEN** the user presses Esc or clicks the close button
 - **THEN** the popup closes
-- **AND** blur-to-close only takes effect after the window has gained focus at least once (same guard as the translate popup)
+- **WHEN** another application gains focus
+- **THEN** chat remains open with its conversation, attachments, and unsent input intact
+- **AND** the window remains accessible from the taskbar and Alt+Tab
 
 ### Requirement: Sending a chat message
 
@@ -105,4 +110,3 @@ Closing the chat popup SHALL notify the backend so that any retained screen capt
 
 - **WHEN** the user closes the chat popup
 - **THEN** the backend drops the stored captures
-

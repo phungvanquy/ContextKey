@@ -1,68 +1,106 @@
-# Pre-release Manual QA Checklist
+# ContextKey release validation
 
-Requires a Windows run with a global keyboard hook + API key (not headless/CI). Verify before tagging.
+Use this checklist to validate a Windows release candidate with a real keyboard, an API endpoint, and the packaged app. Automated tests do not cover desktop focus, IME composition, display scaling, or capture behavior.
 
-Ticked items were confirmed on real Windows against v0.4.0 (2026-07-27) — nothing failed. Unticked items are simply not exercised yet, not known-broken. The ones still open mostly need instrumentation rather than clicking: the duplicate-question check wants a proxy or verbose server log, the capture-release check wants an RSS watch, and cancellation wants provider usage visible.
+## Test record
 
-The keyboard-hook rewrite (`ime-safe-keyboard-hook`) invalidated the input-path ticks: the whole hook is new code, so re-run **Keyboard hook / IME** plus the hotkey and cursor-anchoring items even where they were ticked for v0.4.0.
+Record the environment and results with the release candidate.
 
-## Core
-- [ ] Ctrl+C+Space opens chat with selection as context; Ctrl+C+C still translates; neither double-fires
-- [ ] Esc / close button close the chat popup; clearing context switches to Free Chat. Clicking OUTSIDE must NOT close it
-- [ ] Custom prompt loads, saves, resets to default; blank-save falls back to default template; a subsequent translate uses the saved prompt
-- [x] `cargo tauri build` passes on Windows CI
-- [ ] Packaged exe shows NO UAC prompt; hotkeys work over normal windows; inactive over an elevated foreground window unless the app itself runs as admin
+| Field | Value |
+| --- | --- |
+| Version and commit | |
+| Test date and tester | |
+| Windows version | |
+| Monitor layout and scaling | |
+| Text and vision models | |
+| Result and issue references | |
 
-## Screenshot → vision chat
-- [ ] Screenshot hotkey (default RCtrl RCtrl) freezes the screen and shows the dimmed overlay on EVERY monitor; the frozen image is the real screen, not black
-- [x] **Crop fidelity:** the region sent matches the region dragged — no zoom, no offset. Check at 125%/150% scaling and on a non-primary monitor, where the CSS→physical factor goes wrong
-- [ ] The bright cutout under the cursor tracks the drag accurately
-- [ ] Esc and right-click cancel with no popup; a <5px drag is ignored
-- [ ] Crop opens chat with the thumbnail attached and NOTHING sent until a question is typed; a 2nd capture attaches a 2nd thumbnail; a 3rd evicts the oldest
-- [ ] Capture → close chat without sending → capture again: only the NEW image appears
-- [ ] Vision request routes to `vision_model` when set, falls back to `model` when blank
-- [ ] Closing chat / cancelling frees the captures (watch RSS — images are RAM-only)
+Existing checkmarks record tests performed against v0.4.0 on 2026-07-27. They are historical evidence, not validation of the current build. An unchecked item has not been confirmed in this record and does not necessarily indicate a known failure.
 
-## Chat correctness + window lifecycle
-- [ ] **No duplicate question:** with a proxy or verbose server log, a 2-turn chat sends the question ONCE per turn; an image turn sends one multimodal entry
-- [x] Chat survives a focus change: transcript, typed-but-unsent input, and thumbnails intact; an in-flight response keeps streaming
-- [x] Chat is alt-tab-able / in the taskbar; translate popup is not
-- [ ] **Cancellation:** close a popup mid-stream → the request stops. Two translate triggers in a row → the second popup shows only its own tokens
-- [ ] Closing the translate popup mid-stream does NOT kill an in-flight chat stream
-- [ ] **Empty-clipboard toast:** translate hotkey with nothing selected → a notice near the cursor that does NOT steal focus and self-dismisses. Nothing appears on success
-- [ ] Bad API key → readable summary (not raw JSON), Details expands the raw body, no Retry. Unreachable base_url → Retry offered and re-issues
-- [ ] Chat error: the failed turn shows the error in its bubble, Send re-enables, Retry replaces the bubble without duplicating history
-- [ ] **OQ:** does chat `always_on_top` still feel right now that it persists? If intrusive, drop it and record the decision
-- [ ] **OQ:** is the ~2s toast duration right? Tune `DISMISS_MS` in `toast.js` if not
+The keyboard-hook rewrite requires a new pass through keyboard, IME, shortcut, and cursor-positioning checks. The ContextKey rename and replacement logo require packaging and data-migration checks. Re-run applicable checks for each candidate and record the results above or in the release record.
 
-## Keyboard hook / IME (the reason `keyhook.rs` exists)
-- [ ] **A/B typing check — do this first.** Quit from the tray (not just closing a popup), type a long Vietnamese passage FAST in Notepad, relaunch, retype the same passage at the same speed. Accents must compose identically both times. If the app-running pass is worse, the hook body is still at fault → `design.md` D7 (move the state machine off the hook thread). Repeat with a CJK IME if one is available
-- [ ] Same A/B at speed inside the chat input (a WebView2 text field, not a native one)
-- [ ] Hotkeys do NOT fire from synthesised input: send the bound sequence via AutoHotkey or `SendInput` → nothing should trigger (`LLKHF_INJECTED` is ignored by design)
-- [ ] After tray Quit, the hotkeys stop working immediately — the hook is uninstalled, not orphaned
-- [ ] Double-tap still needs a real release: HOLD Ctrl+C so it key-repeats → must NOT trigger translate
+## Branding and upgrades
 
-## Configurable hotkeys
-- [x] All three hotkeys re-bind from Settings and take effect WITHOUT restart; the old binding stops firing
-- [ ] Re-capturing the screenshot binding to RCtrl RCtrl works (a modifier is a legal "then")
-- [ ] An unsupported key (Left Ctrl, numpad, arrows) is refused at capture rather than saved-and-dead
-- [ ] Duplicate combos are blocked inline; a hand-corrupted `hotkeys` block falls back to defaults
+- [ ] The installer, Start menu entry, tray tooltip, window titles, and Settings use ContextKey. The standalone executable is `contextkey.exe`.
+- [ ] After quitting the old app, launch ContextKey with only the legacy config and window-state files present. Confirm that credentials, custom prompts, hotkeys, and popup size carry over.
+- [ ] Saving settings and resizing the popup write the ContextKey files without changing the legacy files.
+- [ ] When both file sets exist, ContextKey uses its own settings and popup size.
 
-## Runtime footprint
-- [ ] **Single instance:** second launch does NOT start a second process (surfaces Settings); one hotkey press → exactly ONE popup + ONE API request
-- [ ] Both popups anchor next to the cursor on high-DPI and multi-monitor (incl. non-primary at a different scale)
-- [ ] `http://…` base_url saves but warns; `https://`/empty shows no warning
-- [ ] Hotkey stays responsive under heavy mouse/typing and still fires after long uptime
+## Core workflows
 
-## UX
-- [x] **Translate popup survives its own chrome:** drag the header repeatedly, then click Copy / speaker / Details / Retry — it must NOT close. Clicking a different app still closes it within ~200ms; Esc and the close button are unaffected
-- [ ] Translate popup resizes by dragging its edge; truncated original shows full text on hover; Copy is disabled while streaming, then copies plain text with "Copied ✓". If it shows "Copy failed" (WebView2 blocks `navigator.clipboard`), switch to the Tauri clipboard-manager plugin + grant write permission in `capabilities/default.json`
-- [ ] Chat input: Enter sends, Shift+Enter newline (auto-grows ~120px then scrolls), Ctrl+Enter sends, whitespace-only does nothing, textarea resets after send
-- [ ] Chat input with a Vietnamese/CJK IME: Enter to CONFIRM a composition does NOT send
-- [ ] Settings: malformed/scheme-less base_url blocked inline; empty base_url saves; empty api_key saves with a warning; "Test connection" uses the current (possibly unsaved) form values
+- [ ] `Ctrl+C` → `Space` opens chat with the copied text as context. `Ctrl+C` → `C` translates it. Each sequence triggers exactly once.
+- [ ] Esc and the close button dismiss chat. Clearing context starts a new conversation. Clicking another application leaves chat open.
+- [ ] A custom prompt loads, saves, and resets correctly. Saving a blank prompt restores the default, and the next translation uses the saved prompt.
+- [x] `cargo tauri build` passes on Windows CI.
+- [ ] The packaged app starts without an elevation prompt. Shortcuts work over ordinary windows; test elevated foreground windows separately with the app run as administrator.
 
-## UI theme
-- [ ] Both popups + Settings render correctly in dark and light; indigo accent for primary/link/focus; nothing washed-out or invisible
-- [ ] All glyphs are SVG (no emoji); icons tint per hover/disabled/theme; spinner spins
-- [ ] Popups show rounded corners + drop shadow. **OQ:** confirm `transparent:true` didn't break shadow / always-on-top / positioning; else take the opaque + CSS-radius fallback and note it
-- [ ] Tray icon + installer show the two-arrows indigo icon, crisp at small sizes
+## Screenshot and vision chat
+
+- [ ] The default screenshot sequence, `Right Ctrl` → `Right Ctrl`, captures every monitor and shows a frozen image in each selection overlay.
+- [x] The submitted crop matches the selected region without zoom or offset. Check at 125% and 150% scaling and on a secondary monitor.
+- [ ] The highlighted selection follows the drag accurately.
+- [ ] Esc and right-click cancel capture. A region smaller than five pixels is ignored.
+- [ ] Completing a capture attaches a thumbnail without making an API request. A second capture is retained; a third evicts the oldest image.
+- [ ] Capture an image, close chat without sending, and capture again. Only the new image is attached.
+- [ ] Image requests use `vision_model` when configured and otherwise use the main model.
+- [ ] Closing chat or cancelling capture releases retained captures. Use memory instrumentation to verify the result.
+
+## Chat and request lifecycle
+
+- [ ] A request log confirms that each question is sent once, including questions with image attachments.
+- [x] Switching focus preserves chat history, unsent input, attachments, and an in-flight response.
+- [x] Chat is accessible from the taskbar and Alt+Tab; the translation popup has no taskbar entry.
+- [ ] Closing a popup during streaming cancels its request. Triggering translation twice does not mix content from the two requests.
+- [ ] Closing translation does not cancel an independent chat request.
+- [ ] Translation with an empty clipboard displays a brief notice near the cursor without taking focus. Successful requests show no extra notice.
+- [ ] Authentication and missing-endpoint errors show a readable summary and expandable details without Retry. A recoverable connection failure offers Retry.
+- [ ] A failed chat turn displays its error, re-enables Send, and retries without duplicating the user question.
+
+Use a request proxy or provider diagnostics for duplicate-message and cancellation checks. UI behavior alone does not verify network cancellation.
+
+## Keyboard input and IME
+
+- [ ] Compare fast Vietnamese Telex input in Notepad with ContextKey stopped and running. Accents and composition must behave identically. Repeat with a CJK IME when available.
+- [ ] Repeat the composition check inside the chat input.
+- [ ] Synthetic input from AutoHotkey or `SendInput` does not trigger shortcuts.
+- [ ] After choosing **Quit** from the tray, shortcuts no longer trigger the app.
+- [ ] Holding Ctrl+C so that the key repeats does not trigger translation; a release between presses is required.
+
+If the hook affects composition, record the reproduction details and consult the [input-hook design](changes/archive/2026-08-18-ime-safe-keyboard-hook/design.md) before changing the callback.
+
+## Shortcut configuration
+
+- [x] All three shortcuts can be changed in Settings and take effect without restarting. Previous bindings stop firing.
+- [ ] The screenshot binding can be changed back to `Right Ctrl` → `Right Ctrl`.
+- [ ] Unsupported keys, including left Ctrl, numpad keys, and arrows, are rejected by the capture control.
+- [ ] Duplicate bindings cannot be saved. Invalid stored hotkey entries fall back to defaults.
+
+## Runtime and display behavior
+
+- [ ] Launching a second instance brings Settings forward instead of starting another active hook. A shortcut still produces one popup and one API request.
+- [ ] Popups appear near the cursor on monitors with different scaling, including a secondary monitor.
+- [ ] Saving an HTTP endpoint displays a transport warning; an HTTPS or empty URL does not.
+- [ ] Shortcuts remain responsive during heavy typing, mouse activity, and an extended session.
+
+## Interaction and accessibility
+
+- [x] Moving the translation popup and using Copy, read-aloud, Details, or Retry keeps it open. Clicking another app closes it after the focus check; Esc and the close button also work.
+- [ ] The translation popup can be resized. The source-text tooltip shows the full input. Copy is unavailable during streaming and copies plain text after completion.
+- [ ] Enter and Ctrl+Enter send chat messages; Shift+Enter inserts a new line. Empty messages are ignored, and the input resets after sending.
+- [ ] Enter confirms an active Vietnamese or CJK composition without sending the message.
+- [ ] Settings rejects malformed endpoint URLs. Empty credentials can be saved with a warning, and **Test connection** uses the current form values.
+
+## Appearance
+
+- [ ] Translation, chat, and Settings remain readable in both light and dark themes, with consistent focus and hover states.
+- [ ] Interface icons inherit their state colors, and loading indicators animate correctly.
+- [ ] Rounded popup corners, shadows, topmost behavior, and positioning work together on Windows.
+- [ ] The app, tray, and installer show the supplied ContextKey logo clearly, including at small icon sizes.
+
+## Design review questions
+
+Record observations separately from pass/fail checks:
+
+- Does an always-on-top chat window remain useful during longer conversations?
+- Is the approximately two-second notification duration readable without becoming intrusive?
+- Do transparent popup windows need a rendering fallback on any supported Windows configuration?

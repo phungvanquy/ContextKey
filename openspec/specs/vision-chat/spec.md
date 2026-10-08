@@ -1,11 +1,13 @@
 # vision-chat Specification
 
 ## Purpose
+
 Sends a captured screen region to the model alongside a question, so the answer can be about what the user is looking at.
 
 Two constraints shape it. **Consent is explicit:** an image is never transmitted until the user has seen its thumbnail and typed a question, so a screen capture cannot leave the machine by accident. **Context stays honest:** the session carries at most two images, and an evicted one is replaced in history by a visible placeholder rather than silently vanishing, so the model is never answering about a picture it can no longer see.
 
 ## Requirements
+
 ### Requirement: Nothing is sent without an explicit question
 
 A captured image SHALL NOT be sent anywhere until the user types a question and submits it. The crop opens the chat popup with the image attached and the input empty.
@@ -40,7 +42,7 @@ The message content type therefore accepts either a string or an array, so exist
 
 A cropped image SHALL be downscaled so its longest edge is at most 1568 pixels and encoded as JPEG before transmission. The overlay's own preview is encoded separately at lower quality.
 
-1568px is the point beyond which additional resolution buys no extra detail for the vision tiling used by these APIs, so larger images cost tokens without improving the answer. Keeping the preview encoding separate means display speed does not degrade the quality of what is sent.
+The 1568-pixel limit caps the image dimensions sent by the application. The overlay preview uses a separate encoding so its quality can be adjusted independently of the submitted image.
 
 #### Scenario: Large crop downscaled
 
@@ -107,4 +109,3 @@ Silently dropping an image would leave the model answering about a picture it ca
 
 - **WHEN** a third capture arrives
 - **THEN** the oldest image is removed from the strip and its history entries become the removal placeholder
-

@@ -8,6 +8,7 @@ mod hotkey;
 mod keyhook;
 mod popup_sizing;
 mod screenshot;
+mod storage;
 mod tts;
 mod window_state;
 mod windows;
@@ -434,7 +435,7 @@ fn main() {
             TrayIconBuilder::new()
                 .menu(&menu)
                 .icon(icon)
-                .tooltip("Quick Translator")
+                .tooltip("ContextKey")
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "settings" => {
                         if let Err(e) = windows::show_settings_window(app) {

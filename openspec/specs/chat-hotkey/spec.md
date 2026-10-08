@@ -1,8 +1,11 @@
 # chat-hotkey Specification
 
 ## Purpose
-TBD - created by archiving change stage2-chat-popup. Update Purpose after archive.
+
+Defines the configurable keyboard sequence that opens a chat window with copied text as context, including the empty-clipboard case.
+
 ## Requirements
+
 ### Requirement: Ctrl+C+Space triggers chat
 
 The chat action SHALL be triggered by the two-step sequence stored in the `hotkeys.chat` config entry, defaulting to `Ctrl+C` → `Space` within 600ms. It MUST NOT be hardcoded — Ctrl+C+Space is now the default binding rather than the only one.
@@ -40,4 +43,3 @@ When the chat flow fires, the application SHALL read the freshly copied selectio
 
 - **WHEN** the resolved clipboard text is empty
 - **THEN** the chat popup still opens in free-chat mode (no selected-text context strip), since chat does not require a selection to be useful
-

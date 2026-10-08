@@ -1,8 +1,11 @@
 # translation-streaming Specification
 
 ## Purpose
-TBD - created by archiving change rewrite-rust-tauri-stage1. Update Purpose after archive.
+
+Defines streaming translation requests, prompt substitution, completion events, and error presentation.
+
 ## Requirements
+
 ### Requirement: Streaming translation request
 
 The application SHALL translate the captured text by calling an OpenAI-compatible `chat/completions` endpoint with streaming enabled, using `reqwest` + tokio and manual SSE parsing (not `async-openai`), so that any user-provided `base_url` is honored.
@@ -11,7 +14,7 @@ The application SHALL translate the captured text by calling an OpenAI-compatibl
 
 - **WHEN** a translation is requested for some captured text
 - **THEN** the request targets `<base_url>/chat/completions` with `Authorization: Bearer <api_key>`
-- **AND** the JSON body sets `model` to the configured model, `stream` to true, `max_completion_tokens` to 1000
+- **AND** the JSON body sets `model` to the configured model, `stream` to true, `max_completion_tokens` to 4096
 - **AND** `messages` is `[{role: system, content: <system prompt>}, {role: user, content: <captured text>}]`
 
 #### Scenario: System prompt formatting
@@ -32,7 +35,7 @@ The application SHALL stream response chunks to the translation popup as they ar
 
 ### Requirement: Error and missing-key handling
 
-The application SHALL surface API problems as user-visible text matching the Python behavior.
+The application SHALL distinguish request failures from translated content and show a readable error state.
 
 #### Scenario: No API key configured
 
@@ -43,5 +46,5 @@ The application SHALL surface API problems as user-visible text matching the Pyt
 #### Scenario: Request or stream error
 
 - **WHEN** the HTTP request fails, returns a non-success status, or the stream errors
-- **THEN** the popup displays `⚠ Error: <message>` where `<message>` describes the failure
-
+- **THEN** a `translate://error` event carries a summary, details, and retryability
+- **AND** the popup displays the failure separately from translated content and offers Retry only for recoverable errors

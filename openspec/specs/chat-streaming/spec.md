@@ -1,11 +1,14 @@
 # chat-streaming Specification
 
 ## Purpose
-TBD - created by archiving change stage2-chat-popup. Update Purpose after archive.
+
+Defines the request format, streaming events, and conversation-history rules for text and contextual chat.
+
 ## Requirements
+
 ### Requirement: Chat request with context and history
 
-The backend SHALL provide a streaming chat request that POSTs to `<base_url>/chat/completions` with `stream: true`, mirroring the Python `chat_with_context_stream`. The request messages SHALL be: a system prompt, then the prior conversation history, then the new user question.
+The backend SHALL POST to `<base_url>/chat/completions` with `stream: true`. Messages SHALL contain a system prompt followed by the frontend-provided history. That history already includes the current user question, which MUST NOT be appended a second time.
 
 #### Scenario: System prompt varies by selected text
 
@@ -17,12 +20,12 @@ The backend SHALL provide a streaming chat request that POSTs to `<base_url>/cha
 #### Scenario: History is included as context
 
 - **WHEN** a chat request is issued and prior turns exist
-- **THEN** those prior user/assistant messages are sent between the system prompt and the new question, so the assistant has conversational context
+- **THEN** the frontend-provided messages, including the current question exactly once, follow the system prompt in their original order
 
 #### Scenario: Model and credentials from config
 
 - **WHEN** a chat request is issued
-- **THEN** it uses the `model`, `api_key`, and `base_url` from the current config, consistent with the translate flow
+- **THEN** it uses credentials and the endpoint from the current config; text-only requests use `model`, while requests containing images use a non-empty `vision_model` when configured
 
 #### Scenario: Missing API key
 
@@ -43,11 +46,11 @@ The chat request SHALL stream assistant tokens to the popup as they arrive, usin
 - **WHEN** the stream ends normally
 - **THEN** a completion signal is delivered so the popup can finalize the bubble (e.g. render markdown) and re-enable Send
 - **WHEN** the request fails or the stream errors
-- **THEN** an error message is delivered to the popup rather than leaving the bubble hanging indefinitely
+- **THEN** a `chat://error` event carries a summary, details, and retryability so the popup can display the failure and re-enable Send
 
 ### Requirement: Conversation history is bounded
 
-The chat session SHALL retain history across turns within the popup's lifetime and cap it to prevent unbounded growth, matching the Python cap of the last 50 messages.
+The chat session SHALL retain history across turns within the popup's lifetime and retain at most the last 50 messages after each completed response.
 
 #### Scenario: History capped at 50 messages
 
@@ -58,4 +61,3 @@ The chat session SHALL retain history across turns within the popup's lifetime a
 
 - **WHEN** the user clears the selected-text context
 - **THEN** the conversation history is also cleared and subsequent turns start fresh in free-chat mode
-

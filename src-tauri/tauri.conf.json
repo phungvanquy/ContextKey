@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Quick Translator",
+  "productName": "ContextKey",
   "version": "0.4.0",
-  "identifier": "com.quicktranslator.desktop",
+  "identifier": "com.contextkey.desktop",
   "build": {
     "frontendDist": "../frontend"
   },
