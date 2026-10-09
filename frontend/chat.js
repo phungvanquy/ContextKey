@@ -1,198 +1,253 @@
-// chat.js — Chat popup logic
-// Owns conversation history + selected-text context; drives requests via the
-// chat_send command and renders streamed chat:// events. XSS-safe markdown via
-// renderMarkdown (markdown.js).
-
+// Chat history and pending attachments belong to this window. The backend
+// receives only the history for the turn being answered, including on retry.
 const { invoke } = window.__TAURI__.core;
 const { getCurrentWindow } = window.__TAURI__.window;
 const { listen, emit } = window.__TAURI__.event;
 
-// ── Parse init params ─────────────────────────────────────────────────────────
-function getParams() {
-  const params = new URLSearchParams(window.location.search);
-  return { selected: params.get('selected') || '' };
+const byId = id => document.getElementById(id);
+const headerLabel = byId('header-label');
+const contextStrip = byId('context-strip');
+const contextClear = byId('context-clear');
+const transcript = byId('transcript');
+const chatInput = byId('chat-input');
+const sendBtn = byId('send-btn');
+const newChatBtn = byId('new-chat-btn');
+const emptyState = byId('empty-state');
+const jumpLatest = byId('jump-latest');
+const imageStrip = byId('image-strip');
+const imageDialog = byId('image-dialog');
+const resetDialog = byId('reset-dialog');
+
+const MAX_IMAGES = 2;
+const IMAGE_REMOVED = '[earlier screenshot removed from context]';
+let selectedText = '';
+let history = [];
+let pendingImages = [];
+let sessionImages = [];
+let nextImageId = 1;
+let pendingSelection = null;
+let currentTurn = null;
+let streaming = false;
+let ready = false;
+let isClosed = false;
+let followLatest = true;
+let resetAction = null;
+const failedTurns = new Set();
+
+function announce(message) {
+  byId('chat-status').textContent = message;
 }
 
-// ── DOM refs ──────────────────────────────────────────────────────────────────
-const headerLabel  = document.getElementById('header-label');
-const contextStrip = document.getElementById('context-strip');
-const contextText  = document.getElementById('context-text');
-const contextClear = document.getElementById('context-clear');
-const transcript   = document.getElementById('transcript');
-const chatInput    = document.getElementById('chat-input');
-const sendBtn      = document.getElementById('send-btn');
-const closeBtn     = document.getElementById('close-btn');
-
-// ── State ───────────────────────────────────────────────────────────────────
-let selectedText = '';
-let history = [];       // [{role, content}, …], capped at 50
-let streaming = false;
-let imageUrls = [];     // base64 data URLs of attached screenshots (max 2)
-const MAX_IMAGES = 2;
-
-// ── Close ─────────────────────────────────────────────────────────────────────
-let isClosed = false;
 async function closePopup() {
   if (isClosed) return;
   isClosed = true;
-  try {
-    // Signal backend to clear screenshot state (drops images from RAM)
-    await emit('chat://closed', {});
-    await getCurrentWindow().close();
-  } catch (_e) { /* already closing */ }
+  try { await emit('chat://closed', {}); } catch (_e) { /* close still works */ }
+  try { await getCurrentWindow().close(); } catch (_e) { isClosed = false; }
 }
 
-// ── Transcript helpers ────────────────────────────────────────────────────────
-function addUserMessage(text) {
-  const el = document.createElement('div');
-  el.className = 'msg msg-user';
-  el.textContent = text; // user text is plain, never HTML
-  transcript.appendChild(el);
-  scrollToBottom();
+function updateControls() {
+  sendBtn.disabled = !ready || streaming || !chatInput.value.trim();
+  sendBtn.textContent = streaming ? 'Replying…' : 'Send';
+  newChatBtn.disabled = streaming;
+  contextClear.disabled = streaming;
+  byId('use-selection-btn').disabled = streaming;
+  transcript.setAttribute('aria-busy', String(streaming));
+  for (const turn of failedTurns) {
+    if (!history.includes(turn.userMessage)) {
+      turn.retry.remove();
+      failedTurns.delete(turn);
+    } else {
+      turn.retry.disabled = streaming;
+    }
+  }
 }
 
-function addAiMessage() {
-  const el = document.createElement('div');
-  el.className = 'msg msg-ai';
-  // Seed with a typing indicator until the first chunk arrives.
-  el.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
-  transcript.appendChild(el);
-  scrollToBottom();
-  return el;
+function updateContext() {
+  contextStrip.hidden = !selectedText.trim();
+  byId('context-text').textContent = selectedText.length > 140 ? selectedText.slice(0, 137) + '…' : selectedText;
+  byId('context-full').textContent = selectedText;
+  headerLabel.textContent = selectedText.trim() || sessionImages.length ? 'Chat' : 'Free Chat';
+  emptyState.hidden = history.length > 0;
+  byId('empty-title').textContent = pendingImages.length ? 'Ask about your screenshot' : selectedText.trim() ? 'Ask about this selection' : 'Start a conversation';
+  byId('empty-description').textContent = pendingImages.length
+    ? 'Preview or remove a screenshot below, then type a question to send it.'
+    : 'Type a question below. Shift+Enter adds a new line.';
 }
 
-// ── Textarea auto-grow ──────────────────────────────────────────────────────
-const INPUT_MAX_PX = 120;
+function updateJumpButton() {
+  jumpLatest.hidden = followLatest || transcript.scrollHeight <= transcript.clientHeight;
+}
+
+function scrollToBottom(force = false) {
+  if (force) followLatest = true;
+  if (followLatest) transcript.scrollTop = transcript.scrollHeight;
+  updateJumpButton();
+}
+
 function autoGrow() {
   chatInput.style.height = 'auto';
-  chatInput.style.height = Math.min(chatInput.scrollHeight, INPUT_MAX_PX) + 'px';
-}
-function resetInputHeight() {
-  chatInput.style.height = '';
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+  scrollToBottom();
 }
 
-function scrollToBottom() {
-  transcript.scrollTop = transcript.scrollHeight;
-}
-
-// ── Context clear (→ free chat) ───────────────────────────────────────────────
-function clearContext() {
-  selectedText = '';
+function resetChat(context, preserveDraft) {
+  if (streaming) return;
+  selectedText = context;
   history = [];
-  contextStrip.classList.add('hidden');
-  headerLabel.textContent = 'Free Chat';
+  pendingImages = [];
+  sessionImages = [];
+  failedTurns.clear();
+  pendingSelection = null;
+  byId('selection-notice').hidden = true;
+  contextStrip.querySelector('details').open = false;
+  transcript.replaceChildren(emptyState);
+  if (!preserveDraft) chatInput.value = '';
+  autoGrow();
+  renderPendingImages();
+  updateControls();
+  scrollToBottom(true);
+  announce('New chat started. Previous messages and screenshots were cleared.');
+  chatInput.focus();
 }
 
-// ── Send ──────────────────────────────────────────────────────────────────────
+function requestReset(context = '', preserveDraft = false) {
+  if (streaming) return;
+  if (!history.length && !pendingImages.length && (preserveDraft || !chatInput.value.trim())) {
+    resetChat(context, preserveDraft);
+    return;
+  }
+  resetAction = () => resetChat(context, preserveDraft);
+  byId('reset-description').textContent = preserveDraft
+    ? 'This clears the selected text, conversation, and screenshots. Your unsent message stays in the input.'
+    : 'This clears the current conversation, screenshots, and unsent message.';
+  resetDialog.showModal();
+}
+
+function addUserMessage(text, images) {
+  const el = document.createElement('div');
+  el.className = 'msg msg-user';
+  if (images.length) {
+    const attachments = document.createElement('div');
+    attachments.className = 'message-images';
+    for (const image of images) attachments.appendChild(imageButton(image));
+    el.appendChild(attachments);
+  }
+  const body = document.createElement('div');
+  body.textContent = text;
+  el.appendChild(body);
+  transcript.appendChild(el);
+  emptyState.hidden = true;
+  scrollToBottom(true);
+}
+
 async function send() {
   const question = chatInput.value.trim();
-  if (!question || streaming) return;
-
+  if (!ready || !question || streaming) return;
+  announce('');
+  const images = pendingImages;
+  // Consume only this message's attachments now. Captures arriving during the
+  // response belong to the next message and must survive completion or failure.
+  pendingImages = [];
+  const content = images.length
+    ? [{ type: 'text', text: question }, ...images.map(image => ({ type: 'image_url', image_url: { url: image.url } }))]
+    : question;
+  const userMessage = { role: 'user', content };
+  history.push(userMessage);
   chatInput.value = '';
-  resetInputHeight();
-
-  // Multimodal content when images are attached, plain text otherwise.
-  let userContent = question;
-  if (imageUrls.length > 0) {
-    const parts = [{ type: 'text', text: question }];
-    for (const url of imageUrls) {
-      parts.push({ type: 'image_url', image_url: { url } });
-    }
-    userContent = parts;
-  }
-
-  // Recorded BEFORE invoking: the backend sends history verbatim and its last
-  // entry is the question, so it must already be in there.
-  history.push({ role: 'user', content: userContent });
-
-  addUserMessage(question);
-  beginTurn();
-  await runTurn();
+  chatInput.style.height = '';
+  addUserMessage(question, images);
+  renderPendingImages();
+  const turn = beginTurn(userMessage);
+  chatInput.focus();
+  await runTurn(turn);
 }
 
-// Create the assistant bubble and the handlers the chat:// listeners drive.
-// Retry calls this again for the same history entry, so it must not touch
-// `history` — the failed turn's user message is still its last entry.
-function beginTurn() {
-  const aiEl = addAiMessage();
+function beginTurn(userMessage, existingBubble) {
+  const aiEl = existingBubble || document.createElement('div');
+  aiEl.className = 'msg msg-ai is-streaming';
+  aiEl.innerHTML = '<span class="typing" aria-label="Waiting for a reply"><span></span><span></span><span></span></span>';
+  if (!existingBubble) transcript.appendChild(aiEl);
   let full = '';
-  let firstChunk = true;
-
   streaming = true;
-  sendBtn.disabled = true;
-  sendBtn.textContent = '…';
+  updateControls();
+  scrollToBottom();
 
-  // Ends the turn either way. The attached images are cleared on both paths
-  // because they now live in the history entry — leaving them pending would
-  // re-attach them to the next message as a second copy.
-  const releaseInput = () => {
-    imageUrls = [];
-    updateImageStrip();
-    streaming = false;
-    sendBtn.disabled = false;
-    sendBtn.textContent = 'Send';
-    currentTurn = null;
-  };
-
-  currentTurn = {
+  const turn = {
+    userMessage,
     el: aiEl,
     failed: false,
+    release() {
+      if (currentTurn !== this) return;
+      currentTurn = null;
+      streaming = false;
+      aiEl.classList.remove('is-streaming');
+      updateControls();
+      updateContext();
+    },
     appendInterim(delta) {
-      if (firstChunk) {
-        aiEl.textContent = ''; // clear the typing indicator before first text
-        firstChunk = false;
-      }
+      if (this.failed) return;
       full += delta;
-      aiEl.textContent = full; // interim: plain text while streaming
+      aiEl.textContent = full;
       scrollToBottom();
     },
     fail(error) {
+      if (this.failed) return;
       this.failed = true;
-      aiEl.textContent = '';
+      aiEl.classList.remove('is-streaming');
       aiEl.classList.add('msg-error');
-      aiEl.appendChild(buildErrorNode(error));
+      aiEl.replaceChildren();
+      if (full.trim()) {
+        const partial = document.createElement('div');
+        partial.className = 'partial-response';
+        partial.innerHTML = renderMarkdown(full);
+        aiEl.appendChild(partial);
+      }
+      aiEl.appendChild(buildErrorNode(error, this));
       scrollToBottom();
-      releaseInput();
+      // The backend emits done after error. Keep this turn attached until then
+      // so that terminal event cannot finish a newly submitted request.
     },
     finish() {
-      if (this.failed) return;
-      aiEl.innerHTML = renderMarkdown(full); // final: rendered markdown (escaped)
+      if (!this.failed) {
+        if (!full.trim()) {
+          this.fail({ summary: 'The model returned an empty reply. Try again.', retryable: true });
+        } else {
+          aiEl.innerHTML = renderMarkdown(full);
+          const index = history.indexOf(userMessage);
+          if (index >= 0) history.splice(index + 1, 0, { role: 'assistant', content: full.trim() });
+          if (history.length > 50) history = history.slice(-50);
+          pruneImages();
+        }
+      }
+      this.release();
       scrollToBottom();
-      // Record the assistant turn and cap history to the last 50 messages
-      history.push({ role: 'assistant', content: full.trim() });
-      if (history.length > 50) history = history.slice(history.length - 50);
-      releaseInput();
     },
   };
+  currentTurn = turn;
+  return turn;
 }
 
-// Send whatever is already in `history` and stream the reply into the current
-// bubble.
-async function runTurn() {
+async function runTurn(turn) {
+  const index = history.indexOf(turn.userMessage);
+  if (index < 0) { turn.release(); return; }
   try {
-    await invoke('chat_send', { selectedText, history });
-  } catch (e) {
-    if (currentTurn) {
-      currentTurn.fail({
-        summary: 'Could not start the request.',
-        detail: String(e),
-        retryable: true,
-      });
-    }
+    // Retrying an older failure uses that question's prefix, and replaces its
+    // own bubble. Later questions and their replies stay in the conversation.
+    await invoke('chat_send', { selectedText, history: history.slice(0, index + 1) });
+  } catch (error) {
+    if (currentTurn !== turn) return;
+    turn.fail({ summary: 'Could not start the request.', detail: String(error), retryable: true });
+    turn.release();
   }
 }
 
-// Build the failure display for a bubble: summary, collapsed raw detail, and a
-// retry that replaces the failed bubble with a fresh attempt.
-function buildErrorNode({ summary, detail, retryable }) {
+function buildErrorNode({ summary, detail, retryable }, turn) {
   const box = document.createElement('div');
   box.className = 'error-box';
-
   const summaryEl = document.createElement('p');
   summaryEl.className = 'error-summary';
   summaryEl.textContent = summary;
   box.appendChild(summaryEl);
-
   if (detail) {
     const details = document.createElement('details');
     details.className = 'error-details';
@@ -205,151 +260,193 @@ function buildErrorNode({ summary, detail, retryable }) {
     details.append(toggle, pre);
     box.appendChild(details);
   }
-
   if (retryable) {
     const retry = document.createElement('button');
     retry.className = 'btn-retry';
     retry.textContent = 'Retry';
+    retry.disabled = streaming;
+    turn.retry = retry;
+    failedTurns.add(turn);
     retry.addEventListener('click', () => {
-      if (streaming) return;
-      const failedBubble = box.closest('.msg');
-      if (failedBubble) failedBubble.remove();
-      beginTurn();
-      runTurn();
+      if (streaming || !history.includes(turn.userMessage)) return;
+      failedTurns.delete(turn);
+      const attempt = beginTurn(turn.userMessage, turn.el);
+      runTurn(attempt);
     });
     box.appendChild(retry);
   }
-
   return box;
 }
 
-// The in-flight assistant turn, or null. Set in beginTurn(), driven by the
-// chat:// listeners.
-let currentTurn = null;
-
-// ── Image handling ──────────────────────────────────────────────────────────
-
-function attachImage(dataUrl) {
-  if (imageUrls.length >= MAX_IMAGES) {
-    // Enforce cap: remove oldest image from history too
-    const oldUrl = imageUrls.shift();
-    // Replace old image in history with placeholder
-    for (const msg of history) {
-      if (Array.isArray(msg.content)) {
-        msg.content = msg.content.map(part => {
-          if (part.type === 'image_url' && part.image_url && part.image_url.url === oldUrl) {
-            return { type: 'text', text: '[earlier screenshot removed from context]' };
-          }
-          return part;
-        });
-      }
-    }
-  }
-  imageUrls.push(dataUrl);
-  updateImageStrip();
+function imageButton(image) {
+  const button = document.createElement('button');
+  button.className = 'image-preview-button';
+  button.dataset.imageId = image.id;
+  button.setAttribute('aria-label', `Preview screenshot ${image.id}`);
+  const thumb = document.createElement('img');
+  thumb.className = 'image-thumb';
+  thumb.src = image.url;
+  thumb.alt = `Screenshot ${image.id}`;
+  button.appendChild(thumb);
+  button.addEventListener('click', () => {
+    byId('preview-image').src = image.url;
+    imageDialog.dataset.imageId = image.id;
+    byId('image-preview').classList.remove('actual-size');
+    byId('image-size-btn').textContent = 'Show actual size';
+    byId('image-size-btn').setAttribute('aria-pressed', 'false');
+    imageDialog.showModal();
+  });
+  return button;
 }
 
-function updateImageStrip() {
-  // Create or find the image strip container
-  let strip = document.getElementById('image-strip');
-  if (!strip) {
-    strip = document.createElement('div');
-    strip.id = 'image-strip';
-    strip.className = 'image-strip';
-    // Insert after context strip
-    const ctx = document.getElementById('context-strip');
-    ctx.parentNode.insertBefore(strip, ctx.nextSibling);
+function evictImage(image) {
+  sessionImages = sessionImages.filter(item => item !== image);
+  pendingImages = pendingImages.filter(item => item !== image);
+  for (const message of history) {
+    if (Array.isArray(message.content)) {
+      message.content = message.content.map(part => part.type === 'image_url' && part.image_url.url === image.url
+        ? { type: 'text', text: IMAGE_REMOVED } : part);
+    }
   }
+  document.querySelectorAll(`[data-image-id="${image.id}"].image-preview-button`).forEach(button => {
+    const placeholder = document.createElement('span');
+    placeholder.className = 'attachment-removed';
+    placeholder.textContent = IMAGE_REMOVED;
+    button.replaceWith(placeholder);
+  });
+  if (imageDialog.open && imageDialog.dataset.imageId === String(image.id)) imageDialog.close();
+}
 
-  strip.innerHTML = '';
-  if (imageUrls.length === 0) {
-    strip.classList.add('hidden');
-    return;
+function pruneImages() {
+  const usedUrls = new Set(pendingImages.map(image => image.url));
+  for (const message of history) {
+    if (Array.isArray(message.content)) {
+      for (const part of message.content) if (part.type === 'image_url') usedUrls.add(part.image_url.url);
+    }
   }
-  strip.classList.remove('hidden');
+  for (const image of [...sessionImages]) if (!usedUrls.has(image.url)) evictImage(image);
+}
 
-  for (const url of imageUrls) {
-    const thumb = document.createElement('img');
-    thumb.className = 'image-thumb';
-    thumb.src = url;
-    thumb.alt = 'Screenshot';
-    strip.appendChild(thumb);
+function attachImage(url) {
+  let image = sessionImages.find(item => item.url === url);
+  let evicted = false;
+  if (!image) {
+    if (sessionImages.length >= MAX_IMAGES) {
+      evictImage(sessionImages[0]);
+      evicted = true;
+    }
+    image = { id: nextImageId++, url };
+    sessionImages.push(image);
+  }
+  if (!pendingImages.includes(image)) pendingImages.push(image);
+  renderPendingImages();
+  announce(evicted ? 'Oldest screenshot removed from context. Up to two screenshots are kept.' : 'Screenshot attached. Send a question when you are ready.');
+}
+
+function renderPendingImages() {
+  imageStrip.replaceChildren();
+  imageStrip.hidden = !pendingImages.length;
+  for (const image of pendingImages) {
+    const card = document.createElement('div');
+    card.className = 'attachment-card';
+    card.appendChild(imageButton(image));
+    const remove = document.createElement('button');
+    remove.className = 'attachment-remove';
+    remove.textContent = 'Remove';
+    remove.setAttribute('aria-label', `Remove screenshot ${image.id}`);
+    remove.addEventListener('click', () => {
+      pendingImages = pendingImages.filter(item => item !== image);
+      pruneImages();
+      renderPendingImages();
+      announce('Screenshot removed from the next message.');
+      chatInput.focus();
+    });
+    card.appendChild(remove);
+    imageStrip.appendChild(card);
+  }
+  updateContext();
+  scrollToBottom();
+}
+
+async function takeSelection() {
+  try {
+    const selection = await invoke('take_pending_chat_selection');
+    if (selection == null || selection === selectedText) return;
+    pendingSelection = selection;
+    byId('selection-notice').hidden = false;
+  } catch (error) {
+    console.error('Could not load the new selection', error);
   }
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-async function init() {
-  const { selected } = getParams();
-  selectedText = selected;
-
-  if (selectedText.trim()) {
-    const short = selectedText.length > 140 ? selectedText.slice(0, 137) + '…' : selectedText;
-    contextText.textContent = short;
-    headerLabel.textContent = 'Chat';
-  } else {
-    contextStrip.classList.add('hidden');
-    headerLabel.textContent = 'Free Chat';
-  }
-
-  await listen('chat://chunk', (event) => {
-    if (currentTurn) currentTurn.appendInterim(event.payload);
-  });
-  await listen('chat://error', (event) => {
-    if (currentTurn) currentTurn.fail(event.payload);
-  });
-  await listen('chat://done', () => {
-    if (currentTurn) currentTurn.finish();
-  });
-
-  // Image attachments from the screenshot flow arrive two ways:
-  //  - event, when this popup was already open at capture time (listeners up)
-  //  - pull below, when the capture opened this popup (an emit timed against
-  //    webview startup would be dropped — Tauri events are not buffered)
-  await listen('chat://attach-image', (event) => {
-    attachImage(event.payload);
-    // If no text context, switch header to reflect image context
-    if (!selectedText.trim()) {
-      headerLabel.textContent = 'Chat';
-    }
-  });
-
+async function takeImage() {
   try {
     const pending = await invoke('take_pending_image');
-    if (pending) {
-      attachImage(pending);
-      if (!selectedText.trim()) headerLabel.textContent = 'Chat';
-    }
-  } catch (e) {
-    console.error('pending image fetch failed', e);
+    if (pending) attachImage(pending);
+  } catch (_error) {
+    announce('Could not load the screenshot. Capture it again to attach it.');
   }
+}
 
-  // Send triggers
-  sendBtn.addEventListener('click', send);
-  chatInput.addEventListener('input', autoGrow);
-  chatInput.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    // Don't send while an IME composition is active (Vietnamese/CJK input):
-    // Enter there confirms the composition, it must not submit the message.
-    if (e.isComposing || e.keyCode === 229) return;
-    // Shift+Enter (without Ctrl) inserts a newline — let the textarea handle it.
-    if (e.shiftKey && !e.ctrlKey) return;
-    // Enter (no Shift) or Ctrl+Enter → send.
-    e.preventDefault();
+async function init() {
+  selectedText = new URLSearchParams(window.location.search).get('selected') || '';
+  updateContext();
+
+  // Controls are wired before awaiting backend calls so close and keyboard
+  // navigation remain available even if an initial payload fails to load.
+  byId('close-btn').addEventListener('click', closePopup);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !document.querySelector('dialog[open]') && !event.isComposing) closePopup();
+  });
+  newChatBtn.addEventListener('click', () => requestReset());
+  contextClear.addEventListener('click', () => requestReset('', true));
+  byId('confirm-reset-btn').addEventListener('click', () => {
+    resetDialog.close();
+    resetAction?.();
+    resetAction = null;
+  });
+  byId('cancel-reset-btn').addEventListener('click', () => resetDialog.close());
+  byId('use-selection-btn').addEventListener('click', () => requestReset(pendingSelection || ''));
+  byId('dismiss-selection-btn').addEventListener('click', () => {
+    pendingSelection = null;
+    byId('selection-notice').hidden = true;
+  });
+  byId('close-image-btn').addEventListener('click', () => imageDialog.close());
+  imageDialog.addEventListener('close', () => byId('preview-image').removeAttribute('src'));
+  byId('image-size-btn').addEventListener('click', event => {
+    const actual = byId('image-preview').classList.toggle('actual-size');
+    event.currentTarget.textContent = actual ? 'Fit to window' : 'Show actual size';
+    event.currentTarget.setAttribute('aria-pressed', String(actual));
+  });
+  transcript.addEventListener('scroll', () => {
+    followLatest = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 48;
+    updateJumpButton();
+  });
+  jumpLatest.addEventListener('click', () => scrollToBottom(true));
+  new ResizeObserver(() => scrollToBottom()).observe(transcript);
+  chatInput.addEventListener('input', () => { autoGrow(); updateControls(); });
+  chatInput.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) return;
+    if (event.shiftKey && !event.ctrlKey) return;
+    event.preventDefault();
     send();
   });
 
-  // Context clear
-  contextClear.addEventListener('click', clearContext);
-
-  // Close only on deliberate action. Unlike the translate popup, this window
-  // holds a conversation and attached screenshots that a stray click elsewhere
-  // must not destroy — so there is no blur-to-close here.
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closePopup();
-  });
-  closeBtn.addEventListener('click', () => closePopup());
-
+  await listen('chat://chunk', event => currentTurn?.appendInterim(event.payload));
+  await listen('chat://error', event => currentTurn?.fail(event.payload));
+  await listen('chat://done', () => currentTurn?.finish());
+  await listen('chat://attach-image', event => attachImage(event.payload));
+  await listen('chat://image-available', takeImage);
+  await listen('chat://selection-available', takeSelection);
+  await takeSelection();
+  await takeImage();
+  sendBtn.addEventListener('click', send);
+  ready = true;
+  updateControls();
   chatInput.focus();
 }
 
-init().catch(console.error);
+init().catch(error => {
+  announce('Chat could not start. Close this window and try again.');
+  console.error(error);
+});

@@ -12,7 +12,8 @@
   <div class="container">
     <h1 class="title">ContextKey Settings</h1>
 
-    <form id="settings-form" autocomplete="off">
+    <form id="settings-form" autocomplete="off" novalidate>
+      <div class="form-fields">
       <div class="field">
         <label class="label" for="api-key">API Key</label>
         <input
@@ -23,8 +24,10 @@
           placeholder="sk-…"
           autocomplete="off"
           spellcheck="false"
+          aria-describedby="api-key-error"
         />
         <span class="field-hint">Your OpenAI-compatible API key.</span>
+        <span class="field-error" id="api-key-error" hidden></span>
       </div>
 
       <div class="field">
@@ -36,8 +39,10 @@
           name="base_url"
           placeholder="https://api.openai.com/v1"
           spellcheck="false"
+          aria-describedby="base-url-error"
         />
         <span class="field-hint">OpenAI-compatible endpoint. Change for local LLMs or proxies.</span>
+        <span class="field-error" id="base-url-error" hidden></span>
       </div>
 
       <div class="field">
@@ -49,8 +54,11 @@
           name="model"
           placeholder="gpt-4o-mini"
           spellcheck="false"
+          aria-describedby="model-error"
+          required
         />
         <span class="field-hint">Model identifier, e.g. gpt-4o-mini or llama3.</span>
+        <span class="field-error" id="model-error" hidden></span>
       </div>
 
       <div class="field">
@@ -75,8 +83,11 @@
           name="target_language"
           placeholder="Vietnamese"
           spellcheck="false"
+          aria-describedby="target-lang-error"
+          required
         />
         <span class="field-hint">Language to translate into, e.g. Vietnamese, French.</span>
+        <span class="field-error" id="target-lang-error" hidden></span>
       </div>
 
       <div class="field">
@@ -97,12 +108,6 @@
         </div>
       </div>
 
-      <div class="actions">
-        <button type="submit" class="btn-primary" id="save-btn">Save</button>
-        <button type="button" class="btn-secondary" id="test-btn">Test connection</button>
-        <span class="save-status" id="save-status"></span>
-      </div>
-
       <!-- Hotkeys section -->
       <div class="hotkeys-section">
         <div class="hotkeys-header">
@@ -112,7 +117,7 @@
             <span>Reset to defaults</span>
           </button>
         </div>
-        <p class="field-hint hotkeys-hint">Two-step sequences: press prefix, then the trigger key within the time window.</p>
+        <p class="field-hint hotkeys-hint" id="hotkey-capture-help">Press the prefix, then the trigger key. To change a trigger, activate its button and press a key. Esc cancels; Tab moves to the next control.</p>
 
         <div class="hotkey-row" data-action="translate">
           <span class="hotkey-label">Translate</span>
@@ -152,6 +157,14 @@
           <button type="button" class="hotkey-then" aria-label="Screenshot trigger key" data-key="">…</button>
           <span class="hotkey-warn"></span>
         </div>
+      </div>
+      </div>
+      <div class="actions">
+        <div class="action-buttons">
+          <button type="button" class="btn-secondary" id="test-btn" disabled>Test connection</button>
+          <button type="submit" class="btn-primary" id="save-btn" disabled>Save</button>
+        </div>
+        <p class="save-status" id="save-status" role="status" aria-live="polite">Loading settings…</p>
       </div>
     </form>
   </div>

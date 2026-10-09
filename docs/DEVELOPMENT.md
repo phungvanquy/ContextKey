@@ -48,6 +48,16 @@ Run the Rust unit tests:
 cargo test --manifest-path src-tauri/Cargo.toml --bins
 ```
 
+The optional browser regression suite uses Node.js and Playwright. It serves the static frontend with simulated Tauri commands and events; it does not contact a model provider or read your saved settings.
+
+```sh
+npm ci
+npx playwright install chromium
+npm run test:ui
+```
+
+Tests run in light and dark themes and cover chat retry, attachment retention and eviction, context resets, scrolling, keyboard navigation, and settings validation. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium executable. Native Windows window reuse, focus, shortcuts, capture, and monitor scaling still require desktop validation.
+
 Build the Windows executable and NSIS installer:
 
 ```sh

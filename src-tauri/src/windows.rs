@@ -3,7 +3,9 @@
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder,
+};
 
 // ── Cursor-anchored popups ────────────────────────────────────────────────────
 
@@ -320,7 +322,12 @@ pub fn resize_translate_popup_to_content(app: &AppHandle, desired_logical_h: f64
 
 // ── Chat popup ────────────────────────────────────────────────────────────────
 
-/// Create and show the chat popup near the cursor.
+/// Pulled after the chat's listeners are ready, including when a second hotkey
+/// arrives while the existing webview is still loading.
+#[derive(Default)]
+pub struct PendingChatSelection(pub Mutex<Option<String>>);
+
+/// Create the chat popup or bring its existing conversation back into view.
 /// `selected`: captured selection text (may be empty → free chat)
 /// `cursor_x`, `cursor_y`: cursor position in PHYSICAL screen pixels
 pub fn show_chat_popup(
@@ -329,6 +336,23 @@ pub fn show_chat_popup(
     cursor_x: f64,
     cursor_y: f64,
 ) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("chat-popup") {
+        if !selected.trim().is_empty() {
+            *app.state::<PendingChatSelection>()
+                .0
+                .lock()
+                .unwrap_or_else(|e| e.into_inner()) = Some(selected.to_string());
+            let _ = window.emit("chat://selection-available", ());
+        }
+        let _ = window.unminimize();
+        window.show().map_err(|e| e.to_string())?;
+        return window.set_focus().map_err(|e| e.to_string());
+    }
+
+    *app.state::<PendingChatSelection>()
+        .0
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = None;
     show_cursor_popup(
         app,
         PopupSpec {

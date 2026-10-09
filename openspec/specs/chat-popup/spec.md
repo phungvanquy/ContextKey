@@ -61,8 +61,13 @@ The popup SHALL let the user type a question in a multi-line input and send it, 
 
 #### Scenario: Transcript scrolls with new content
 
-- **WHEN** new message content is appended and exceeds the visible area
-- **THEN** the transcript is scrollable and follows the newest content to the bottom
+- **WHEN** new message content is appended while the user is at or near the bottom
+- **THEN** the transcript follows the newest content to the bottom
+- **WHEN** the user scrolls up to read earlier messages
+- **THEN** subsequent chunks and completion rendering preserve their reading position
+- **AND** a "Jump to latest" control lets them return to the bottom and resume following new content
+- **WHEN** the user sends a new message or manually scrolls back to the bottom
+- **THEN** following the newest content resumes
 
 #### Scenario: Send re-enabled after completion
 

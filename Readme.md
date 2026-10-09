@@ -57,11 +57,15 @@ Drag the header to move the popup, or resize its edges to adjust the reading are
 
 Use the chat shortcut to open a conversation with the copied text as context. Press **Enter** or **Ctrl+Enter** to send; use **Shift+Enter** for a new line.
 
-Chat stays open when you switch applications and is accessible from the taskbar. Clearing the selected-text context resets the conversation and switches to free chat. Closing the window ends the session.
+Chat stays open when you switch applications and is accessible from the taskbar. Invoking the chat shortcut again brings back the existing conversation, including your draft. If you copied different text, choose **New chat with selection** to use it. **New chat** starts a general conversation; clearing the selected-text context also resets the visible conversation and switches to free chat. A confirmation protects existing messages and screenshots. Closing the window ends the session.
+
+Expand the selected-text strip to read the full source. While a reply is streaming, scroll up to read earlier messages; **Jump to latest** resumes following the reply. Retrying a failed reply keeps it beside its original question.
 
 ### Ask about a screenshot
 
 Use the screenshot shortcut and drag across the area you want to capture. ContextKey opens the chat window with a preview attached. Enter a question and send it to submit the image to your configured endpoint.
+
+Click a thumbnail to inspect it, or choose **Remove** before sending. Submitted screenshots stay beside their messages. A screenshot captured while a reply is streaming is kept for your next question.
 
 Press **Esc** or right-click to cancel a capture. A chat session retains at most two screenshots; adding a third removes the oldest image and marks its removal in the conversation history.
 

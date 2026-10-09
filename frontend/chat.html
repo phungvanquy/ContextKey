@@ -16,6 +16,7 @@
         <svg class="ic ic-chat" aria-hidden="true"><use href="#ic-chat"/></svg>
         <span id="header-label" data-tauri-drag-region>Chat</span>
       </span>
+      <button class="btn-quiet" id="new-chat-btn" title="Start a new conversation">New chat</button>
       <button class="close-btn" id="close-btn" title="Close (Esc)" aria-label="Close">
         <svg class="ic" aria-hidden="true"><use href="#ic-close"/></svg>
       </button>
@@ -23,14 +24,35 @@
 
     <!-- Context strip (hidden in free-chat mode) -->
     <div class="context-strip" id="context-strip">
-      <span class="context-text" id="context-text"></span>
-      <button class="context-clear" id="context-clear" title="Clear context" aria-label="Clear context">
+      <details class="context-details">
+        <summary class="context-text" id="context-text"></summary>
+        <div class="context-full" id="context-full"></div>
+      </details>
+      <button class="context-clear" id="context-clear" title="Clear context and start a new chat" aria-label="Clear context and start a new chat">
         <svg class="ic" aria-hidden="true"><use href="#ic-close"/></svg>
       </button>
     </div>
 
-    <!-- Scrollable transcript -->
-    <div class="transcript" id="transcript"></div>
+    <div class="selection-notice" id="selection-notice" hidden>
+      <span>A new text selection is ready.</span>
+      <button class="btn-quiet" id="use-selection-btn">New chat with selection</button>
+      <button class="context-clear" id="dismiss-selection-btn" aria-label="Dismiss new selection">
+        <svg class="ic" aria-hidden="true"><use href="#ic-close"/></svg>
+      </button>
+    </div>
+
+    <div class="conversation-area">
+      <div class="transcript" id="transcript" role="log" aria-label="Conversation" aria-live="polite" tabindex="0">
+        <div class="empty-state" id="empty-state">
+          <p class="empty-title" id="empty-title">Start a conversation</p>
+          <p id="empty-description">Type a question below. Shift+Enter adds a new line.</p>
+        </div>
+      </div>
+      <button class="jump-latest" id="jump-latest" hidden>Jump to latest ↓</button>
+    </div>
+
+    <div class="image-strip" id="image-strip" aria-label="Screenshots to send" hidden></div>
+    <p class="chat-status" id="chat-status" role="status"></p>
 
     <!-- Input bar pinned to bottom -->
     <div class="input-bar">
@@ -41,10 +63,33 @@
         placeholder="Ask a question…"
         autocomplete="off"
         spellcheck="false"
+        aria-label="Message"
+        aria-describedby="input-help"
       ></textarea>
-      <button class="btn-send" id="send-btn">Send</button>
+      <span class="sr-only" id="input-help">Enter to send. Shift+Enter for a new line.</span>
+      <button class="btn-send" id="send-btn" disabled>Send</button>
     </div>
   </div>
+
+  <dialog class="chat-dialog" id="reset-dialog" aria-labelledby="reset-title" aria-describedby="reset-description">
+    <h2 id="reset-title">Start a new chat?</h2>
+    <p id="reset-description">This clears the current conversation and screenshots.</p>
+    <div class="dialog-actions">
+      <button class="btn-quiet" id="cancel-reset-btn" autofocus>Keep current chat</button>
+      <button class="btn-send" id="confirm-reset-btn">Start new chat</button>
+    </div>
+  </dialog>
+
+  <dialog class="chat-dialog image-dialog" id="image-dialog" aria-labelledby="image-dialog-title">
+    <div class="dialog-header">
+      <h2 id="image-dialog-title">Screenshot preview</h2>
+      <button class="close-btn" id="close-image-btn" aria-label="Close screenshot preview" autofocus>
+        <svg class="ic" aria-hidden="true"><use href="#ic-close"/></svg>
+      </button>
+    </div>
+    <div class="image-preview" id="image-preview"><img id="preview-image" alt="Screenshot preview" /></div>
+    <button class="btn-quiet" id="image-size-btn" aria-pressed="false">Show actual size</button>
+  </dialog>
 
   <script src="markdown.js"></script>
   <script src="chat.js"></script>

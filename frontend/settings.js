@@ -20,6 +20,39 @@ const saveBtn         = document.getElementById('save-btn');
 const testBtn         = document.getElementById('test-btn');
 const saveStatus      = document.getElementById('save-status');
 const form            = document.getElementById('settings-form');
+let configLoaded = false;
+let saving = false;
+let testing = false;
+
+function fieldError(input, message) {
+  const error = document.getElementById(input.id + '-error');
+  input.setAttribute('aria-invalid', String(Boolean(message)));
+  error.textContent = message || '';
+  error.hidden = !message;
+}
+
+function validateFields(forTest = false) {
+  const errors = [
+    [baseUrlInput, baseUrlError(baseUrlInput.value.trim())],
+    [modelInput, modelInput.value.trim() ? null : 'Enter a model identifier.'],
+    [targetLangInput, !forTest && !targetLangInput.value.trim() ? 'Enter a target language.' : null],
+    [apiKeyInput, forTest && !apiKeyInput.value.trim() ? 'Enter an API key before testing.' : null],
+  ];
+  errors.forEach(([input, message]) => fieldError(input, message));
+  const first = errors.find(([, message]) => message);
+  if (!first) return true;
+  showStatus('Check the highlighted fields.', 'error');
+  first[0].focus();
+  first[0].scrollIntoView({ block: 'nearest' });
+  return false;
+}
+
+function updateActionState() {
+  saveBtn.disabled = !configLoaded || saving || testing;
+  testBtn.disabled = !configLoaded || saving || testing;
+  saveBtn.textContent = saving ? 'Saving…' : 'Save';
+  testBtn.textContent = testing ? 'Testing…' : 'Test connection';
+}
 
 // ── base_url validation ─────────────────────────────────────────────────────
 // Empty is valid (backend defaults to the OpenAI endpoint). Non-empty must be a
@@ -60,24 +93,22 @@ async function loadConfig() {
     targetLangInput.value = cfg.target_language  || '';
     promptInput.value     = cfg.custom_prompt    || DEFAULT_PROMPT;
     populateHotkeys(cfg.hotkeys);
+    configLoaded = true;
+    showStatus('');
   } catch (e) {
     showStatus('Failed to load config: ' + e, true);
+  } finally {
+    updateActionState();
   }
 }
 
 // ── Save config ───────────────────────────────────────────────────────────────
 async function saveConfig(e) {
   e.preventDefault();
+  if (!configLoaded || saving || testing || !validateFields()) return;
 
   const apiKey  = apiKeyInput.value.trim();
   const baseUrl = baseUrlInput.value.trim();
-
-  // Block a clearly-malformed base_url before saving.
-  const urlErr = baseUrlError(baseUrl);
-  if (urlErr) {
-    showStatus(urlErr, 'error');
-    return;
-  }
 
   // Validate hotkeys — block save on conflicts
   const hotkeys = getHotkeyValues();
@@ -85,6 +116,7 @@ async function saveConfig(e) {
   const hasMissing = Object.values(hotkeys).some(h => !h.then);
   if (hasConflict) {
     showStatus('Fix hotkey conflicts before saving.', 'error');
+    document.querySelector('.hotkey-row:has(.hotkey-warn:not(:empty)) .hotkey-prefix')?.focus();
     return;
   }
   if (hasMissing) {
@@ -105,6 +137,8 @@ async function saveConfig(e) {
     hotkeys,
   };
 
+  saving = true;
+  updateActionState();
   try {
     await invoke('update_config', { update });
     // Non-blocking warnings, in priority order: no key (won't work at all) then
@@ -118,70 +152,74 @@ async function saveConfig(e) {
     }
   } catch (err) {
     showStatus('Error: ' + err, 'error');
+  } finally {
+    saving = false;
+    updateActionState();
   }
 }
 
 // ── Test connection ─────────────────────────────────────────────────────────
 async function testConnection() {
-  const urlErr = baseUrlError(baseUrlInput.value.trim());
-  if (urlErr) {
-    showStatus(urlErr, 'error');
-    return;
-  }
-  if (!apiKeyInput.value.trim()) {
-    showStatus('Set an API key before testing.', 'warn');
-    return;
-  }
-
-  testBtn.disabled = true;
-  showStatus('Testing…', false);
+  if (!configLoaded || saving || testing || !validateFields(true)) return;
+  const baseUrl = baseUrlInput.value.trim();
+  const apiKey = apiKeyInput.value.trim();
+  const model = modelInput.value.trim();
+  const visionModel = visionModelInput.value.trim();
+  const testedValues = [baseUrl, apiKey, model, visionModel].join('\n');
+  testing = true;
+  updateActionState();
+  showStatus('Testing connection…', 'neutral');
   try {
     // Uses current form values (not last-saved config) so the user can test first.
-    const msg = await invoke('test_connection', {
-      baseUrl: baseUrlInput.value.trim(),
-      apiKey:  apiKeyInput.value.trim(),
-      model:   modelInput.value.trim(),
+    await invoke('test_connection', {
+      baseUrl, apiKey, model,
     });
 
-    const visionModel = visionModelInput.value.trim();
     if (visionModel) {
-      const msg2 = await invoke('test_connection', {
-        baseUrl: baseUrlInput.value.trim(),
-        apiKey:  apiKeyInput.value.trim(),
+      await invoke('test_connection', {
+        baseUrl, apiKey,
         model:   visionModel,
       });
-      showStatus(`Model OK (${msg}) · Vision OK (${msg2})`, false);
+      showStatus('Both model connections succeeded. Save to apply.', false);
     } else {
-      showStatus('Connection OK ' + (msg || ''), false);
+      showStatus('Connection succeeded. Save to apply.', false);
     }
+    const currentValues = [baseUrlInput, apiKeyInput, modelInput, visionModelInput].map(input => input.value.trim()).join('\n');
+    if (currentValues !== testedValues) showStatus('Settings changed during the test. Test again to check the new values.', 'warn');
   } catch (err) {
     showStatus('Test failed: ' + err, 'error');
   } finally {
-    testBtn.disabled = false;
+    testing = false;
+    updateActionState();
   }
 }
 
 // ── Status message ────────────────────────────────────────────────────────────
-let statusTimer = null;
-
 // `variant` is 'error', 'warn', or falsy (success/neutral). Kept back-compatible
 // with the old boolean isError argument (true → 'error').
 function showStatus(msg, variant) {
   const cls = variant === true ? 'error' : (variant || '');
   saveStatus.textContent = msg;
   saveStatus.className = 'save-status' + (cls ? ' ' + cls : '');
-  if (statusTimer) clearTimeout(statusTimer);
-  statusTimer = setTimeout(() => {
-    saveStatus.textContent = '';
-    saveStatus.className = 'save-status';
-  }, 4000);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 form.addEventListener('submit', saveConfig);
+form.addEventListener('input', (event) => {
+  if (event.target.matches('.input') && document.getElementById(event.target.id + '-error')) {
+    const input = event.target;
+    if (input.getAttribute('aria-invalid') === 'true') {
+      const message = input === baseUrlInput ? baseUrlError(input.value.trim())
+        : input.value.trim() ? '' : document.getElementById(input.id + '-error').textContent;
+      fieldError(input, message);
+    }
+  }
+  if (configLoaded && !saving && !testing) showStatus('Unsaved changes', 'neutral');
+});
 testBtn.addEventListener('click', testConnection);
 resetPromptBtn.addEventListener('click', () => {
   promptInput.value = DEFAULT_PROMPT;
+  showStatus('Unsaved changes', 'neutral');
 });
 
 // ── Hotkeys section ──────────────────────────────────────────────────────────
@@ -237,16 +275,20 @@ const SUPPORTED_THEN = new Set([
 // Set up capture on each "then" button
 hotkeyRows.forEach(row => {
   const btn = row.querySelector('.hotkey-then');
-  btn.addEventListener('focus', () => {
+  btn.setAttribute('aria-describedby', 'hotkey-capture-help');
+  btn.addEventListener('click', () => {
     btn.classList.add('capturing');
     btn.textContent = 'Press key…';
+    btn.setAttribute('aria-pressed', 'true');
   });
   btn.addEventListener('blur', () => {
     btn.classList.remove('capturing');
+    btn.setAttribute('aria-pressed', 'false');
     const key = btn.dataset.key;
     btn.textContent = key || '…';
   });
   btn.addEventListener('keydown', (e) => {
+    if (!btn.classList.contains('capturing') || e.key === 'Tab') return;
     e.preventDefault();
     e.stopPropagation();
     if (e.key === 'Escape') {
@@ -263,13 +305,17 @@ hotkeyRows.forEach(row => {
     btn.dataset.key = key;
     btn.textContent = label;
     btn.classList.remove('capturing');
-    btn.blur();
+    btn.setAttribute('aria-pressed', 'false');
     validateHotkeys();
+    showStatus('Unsaved changes', 'neutral');
   });
 
   // Prefix change also triggers validation
   const select = row.querySelector('.hotkey-prefix');
-  select.addEventListener('change', validateHotkeys);
+  select.addEventListener('change', () => {
+    validateHotkeys();
+    showStatus('Unsaved changes', 'neutral');
+  });
 });
 
 function getHotkeyValues() {
@@ -278,7 +324,7 @@ function getHotkeyValues() {
     const action = row.dataset.action;
     const prefix = row.querySelector('.hotkey-prefix').value;
     const thenKey = row.querySelector('.hotkey-then').dataset.key;
-    result[action] = { prefix, then: thenKey || '', window_ms: HOTKEY_DEFAULTS[action].window_ms };
+    result[action] = { prefix, then: thenKey || '', window_ms: Number(row.dataset.windowMs) || HOTKEY_DEFAULTS[action].window_ms };
   });
   return result;
 }
@@ -320,6 +366,7 @@ function populateHotkeys(hotkeys) {
   hotkeyRows.forEach(row => {
     const action = row.dataset.action;
     const entry = cfg[action] || HOTKEY_DEFAULTS[action];
+    row.dataset.windowMs = entry.window_ms;
     row.querySelector('.hotkey-prefix').value = entry.prefix;
     const btn = row.querySelector('.hotkey-then');
     btn.dataset.key = entry.then;
@@ -330,6 +377,7 @@ function populateHotkeys(hotkeys) {
 
 resetHotkeysBtn.addEventListener('click', () => {
   populateHotkeys(HOTKEY_DEFAULTS);
+  showStatus('Unsaved changes', 'neutral');
 });
 
 loadConfig().catch(console.error);

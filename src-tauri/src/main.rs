@@ -67,6 +67,13 @@ fn take_pending_image(
     guard.as_mut().and_then(|s| s.prepared_image.take())
 }
 
+#[tauri::command]
+fn take_pending_chat_selection(
+    state: tauri::State<'_, windows::PendingChatSelection>,
+) -> Option<String> {
+    state.0.lock().unwrap_or_else(|e| e.into_inner()).take()
+}
+
 /// Return the frozen screenshot preview for one overlay window.
 ///
 /// Pull model, not push: the overlay calls this once its listeners/canvas are
@@ -289,7 +296,7 @@ async fn handle_overlay_select(app: AppHandle, event: tauri::Event) {
     // Crop from the capture belonging to the monitor the user dragged on —
     // coordinates are relative to that overlay, so any other capture would
     // yield the wrong region on a multi-monitor setup.
-    let data_url = {
+    {
         let store = app.state::<screenshot::ScreenshotStore>();
         let mut guard = store.0.lock().unwrap();
         let state = match guard.as_mut() {
@@ -324,23 +331,19 @@ async fn handle_overlay_select(app: AppHandle, event: tauri::Event) {
 
         let cropped = screenshot::crop_region(img, &rect);
         let url = screenshot::prepare_for_api(&cropped);
-        state.prepared_image = Some(url.clone());
-        url
-    };
+        state.prepared_image = Some(url);
+    }
 
-    // If chat popup is already open, attach image to it. Its listeners are
-    // already attached, so an emit is safe here — and the pending slot must be
-    // cleared so a later fresh popup can't pull this same crop again.
+    // Wake an existing popup, but let it consume the pending crop by pull. If
+    // its webview is still loading, init will pull after attaching listeners.
     if let Some(chat_window) = app.get_webview_window("chat-popup") {
         use tauri::Emitter;
-        let _ = chat_window.emit("chat://attach-image", &data_url);
-        let store = app.state::<screenshot::ScreenshotStore>();
-        let mut guard = store.0.lock().unwrap();
-        if let Some(s) = guard.as_mut() {
-            s.prepared_image = None;
-        }
+        let _ = chat_window.emit("chat://image-available", ());
+        let _ = chat_window.unminimize();
+        let _ = chat_window.show();
+        let _ = chat_window.set_focus();
     } else {
-        // Open chat popup fresh (no text context, image will arrive via event)
+        // Open chat popup fresh; init consumes the pending image.
         let (cx, cy) = keyhook::cursor_pos();
         if let Err(e) = windows::show_chat_popup(&app, "", cx, cy) {
             eprintln!("chat popup error: {e}");
@@ -400,6 +403,7 @@ fn main() {
         .manage(tts::TtsHandle::new())
         .manage(parsed_hotkeys.clone())
         .manage(screenshot::ScreenshotStore::new())
+        .manage(windows::PendingChatSelection::default())
         .setup(move |app| {
             // ── Tray menu ──────────────────────────────────────────────────────
             let menu = Menu::new(app.handle())?;
@@ -487,6 +491,10 @@ fn main() {
 
             let app_closed = app.handle().clone();
             app.listen_any("chat://closed", move |_event| {
+                *app_closed.state::<windows::PendingChatSelection>()
+                    .0
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner()) = None;
                 let store = app_closed.state::<screenshot::ScreenshotStore>();
                 let mut guard = store.0.lock().unwrap();
                 *guard = None;
@@ -504,6 +512,7 @@ fn main() {
             open_settings_cmd,
             get_overlay_preview,
             take_pending_image,
+            take_pending_chat_selection,
             chat_send,
             translate_retry,
             test_connection,

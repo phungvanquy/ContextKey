@@ -6,3 +6,8 @@ src-tauri/target/
 
 # Per-machine tool permissions, accumulated per session — not shared config
 .claude/settings.local.json
+
+# Optional frontend browser tests
+node_modules/
+test-results/
+playwright-report/
