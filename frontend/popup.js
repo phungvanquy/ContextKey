@@ -44,6 +44,7 @@ let isClosed = false;
 async function closePopup() {
   if (isClosed) return;
   isClosed = true;
+  markdownRenderer.cancel();
   invoke('tts_stop').catch(() => {});
   try {
     await getCurrentWindow().close();
@@ -147,9 +148,14 @@ function requestResize() {
 let streamStarted = false;
 let fullText = '';
 let failed = false;
+const markdownRenderer = createMarkdownRenderer(translationText, () => {
+  translationText.classList.add('rendered');
+  requestResize();
+});
 
 // Return the popup to its loading state so another stream can render into it.
 function resetForStream() {
+  markdownRenderer.cancel();
   lastReportedH = 0;
   streamStarted = false;
   fullText = '';
@@ -165,6 +171,7 @@ function resetForStream() {
 
 function showError({ summary, detail, retryable }) {
   failed = true;
+  if (streamStarted) markdownRenderer.flush(fullText);
   spinner.style.display = 'none';
   errorSummary.textContent = summary;
   errorDetailText.textContent = detail || '';
@@ -183,35 +190,30 @@ async function init() {
 
   // Listeners live for the popup's lifetime: a retry streams through them again.
   await listen('translate://chunk', (event) => {
+    if (failed || isClosed) return;
     if (!streamStarted) {
       // Hide spinner, show text area on first chunk
       spinner.style.display = 'none';
       translationText.style.display = 'block';
       streamStarted = true;
     }
-    // Keep the raw source for final Markdown rendering, and show plain text
-    // while streaming (partial Markdown renders poorly).
+    // Preserve the source for Copy and reparse it as Markdown while streaming.
     fullText += event.payload;
-    translationText.textContent = fullText;
-    requestResize();
+    markdownRenderer.schedule(fullText);
   });
 
   await listen('translate://error', (event) => { showError(event.payload); requestResize(); });
 
   await listen('translate://done', () => {
     // A failed request already rendered its own state; leave it alone.
-    if (failed) return;
+    if (failed || isClosed) return;
     if (!streamStarted) {
       spinner.style.display = 'none';
       translationText.style.display = 'block';
     }
-    // Render the accumulated text as Markdown. renderMarkdown escapes its
-    // input first, so any HTML/script in the translation is inert. Empty
-    // input renders to an empty string, which is harmless.
-    translationText.innerHTML = renderMarkdown(fullText);
-    translationText.classList.add('rendered');
+    // Flush even when the final chunk and completion arrive in the same frame.
+    markdownRenderer.flush(fullText);
     if (fullText.trim()) copyBtn.disabled = false;
-    requestResize();
     requestAnimationFrame(requestResize);
   });
 

@@ -171,7 +171,6 @@ html, body {
   color: var(--text);
 }
 
-.msg-ai.is-streaming { white-space: pre-wrap; }
 .partial-response { margin-bottom: 12px; }
 
 .empty-state {

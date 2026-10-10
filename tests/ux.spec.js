@@ -100,6 +100,115 @@ async function requests(page, command = 'chat_send') {
   return page.evaluate(command => window.__mock.calls.filter(call => call.command === command).map(call => call.args), command);
 }
 
+async function openStreamingOutput(page, flow) {
+  if (flow === 'chat') {
+    await openChat(page);
+    await send(page, 'Show formatted text');
+    return page.locator('.msg-ai');
+  }
+  await bridge(page);
+  await page.goto('/popup.html?original=Source');
+  await expect.poll(() => requests(page, 'popup://ready')).toHaveLength(1);
+  return page.locator('#translation-text');
+}
+
+async function streamEvent(page, flow, type, payload = '') {
+  await page.evaluate(({ flow, type, payload }) => {
+    window.__fire(`${flow}://${type}`, payload);
+    if (type === 'done') window.__mock.resolveChat?.();
+  }, { flow, type, payload });
+}
+
+for (const flow of ['chat', 'translate']) {
+  test(`${flow} renders Markdown before completion across split chunks`, async ({ page }) => {
+    const output = await openStreamingOutput(page, flow);
+    const chunks = [
+      '# Live heading\n\nA **bo',
+      'ld** with *italic*, ***both*** and `code`.\n\n- first\n- sec',
+      'ond\n\n1. ordered\n2. next\n\n```js\nconst value = "<tag>";\n',
+      'console.log(value);\n```\n\nFinished.',
+    ];
+    await streamEvent(page, flow, 'chunk', chunks[0]);
+    await expect(output.locator('h1')).toHaveText('Live heading');
+    await expect(output.locator('p')).toHaveText('A **bo');
+    await expect(output.locator('strong')).toHaveCount(0);
+    await streamEvent(page, flow, 'chunk', chunks[1]);
+    await expect(output.locator('strong')).toHaveText(['bold', 'both']);
+    await expect(output.locator('em')).toHaveText(['italic', 'both']);
+    await expect(output.locator('code')).toHaveText('code');
+    await expect(output.locator('ul li')).toHaveText(['first', 'sec']);
+    await streamEvent(page, flow, 'chunk', chunks[2]);
+    await expect(output.locator('ul li')).toHaveText(['first', 'second']);
+    await expect(output.locator('ol li')).toHaveText(['ordered', 'next']);
+    await expect(output.locator('pre code')).toHaveText('const value = "<tag>";\n');
+    await streamEvent(page, flow, 'chunk', chunks[3]);
+    await expect(output.locator('pre code')).toHaveText('const value = "<tag>";\nconsole.log(value);');
+    await expect(output.locator('p').last()).toHaveText('Finished.');
+    await expect(output).toHaveCSS('white-space', 'normal');
+    await expect(page.locator(flow === 'chat' ? '#send-btn' : '#copy-btn')).toBeDisabled();
+    const streamedHtml = await output.innerHTML();
+    await streamEvent(page, flow, 'done');
+    expect(await output.innerHTML()).toBe(streamedHtml);
+
+    // Formatting must never replace the raw source used for history or Copy.
+    if (flow === 'chat') {
+      await send(page, 'Follow-up');
+      expect((await requests(page)).at(-1).history[1].content).toBe(chunks.join(''));
+    } else {
+      await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: async text => { window.__mock.copiedText = text; } },
+        configurable: true,
+      }));
+      await page.locator('#copy-btn').click();
+      expect(await page.evaluate(() => window.__mock.copiedText)).toBe(chunks.join(''));
+      await expect.poll(() => requests(page, 'resize_translate_popup')).not.toHaveLength(0);
+    }
+  });
+
+  test(`${flow} keeps HTML inert while streaming and flushes the last chunk on completion`, async ({ page }) => {
+    const output = await openStreamingOutput(page, flow);
+    const source = '**Safe**\n\n<img src=x onerror="window.__markdownExecuted=true"><script>window.__markdownExecuted=true</script>';
+    await streamEvent(page, flow, 'chunk', source);
+    await expect(output.locator('strong')).toHaveText('Safe');
+    await expect(output.locator('img, script')).toHaveCount(0);
+    await expect(output).toContainText('<img src=x onerror="window.__markdownExecuted=true">');
+    const finalHeading = await page.evaluate(flow => {
+      window.__fire(`${flow}://chunk`, '\n\n## Last chunk');
+      window.__fire(`${flow}://done`, '');
+      window.__mock.resolveChat?.();
+      return document.querySelector(flow === 'chat' ? '.msg-ai h2' : '#translation-text h2')?.textContent;
+    }, flow);
+    expect(finalHeading).toBe('Last chunk');
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await expect(output.locator('h2')).toHaveText('Last chunk');
+    await expect(output.locator('img, script')).toHaveCount(0);
+    expect(await page.evaluate(() => window.__markdownExecuted)).toBeUndefined();
+  });
+
+  test(`${flow} preserves pending Markdown on failure and clears it for retry`, async ({ page }) => {
+    const output = await openStreamingOutput(page, flow);
+    // Fail before the browser can paint the pending chunk.
+    await page.evaluate(flow => {
+      window.__fire(`${flow}://chunk`, '## Partial\n\n**Useful** text');
+      window.__fire(`${flow}://error`, { summary: 'Connection lost.', retryable: true });
+      window.__fire(`${flow}://done`, '');
+      window.__mock.resolveChat?.();
+    }, flow);
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await expect(output.locator('h2')).toHaveText('Partial');
+    await expect(output.locator('strong')).toHaveText('Useful');
+    await expect(page.locator('.error-summary')).toHaveText('Connection lost.');
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(output.locator('h2')).toHaveCount(0);
+    await streamEvent(page, flow, 'chunk', '## Retried\n\nA **new** answer.');
+    await expect(output.locator('h2')).toHaveText('Retried');
+    await expect(output.locator('strong')).toHaveText('new');
+    await streamEvent(page, flow, 'done');
+    await expect(page.locator('.error-summary')).toBeHidden();
+    await expect(output).not.toContainText('Useful');
+  });
+}
+
 for (const ending of ['success', 'failure']) {
   test(`a screenshot captured during a ${ending} response remains pending`, async ({ page }) => {
     await openChat(page);

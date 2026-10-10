@@ -121,8 +121,8 @@ body {
   cursor: text;
 }
 
-/* Once the stream completes we render Markdown as real block elements, so the
-   pre-wrap (which preserves source newlines) must be turned off. */
+/* Markdown uses block elements during streaming and after completion, so
+   source newlines between generated tags must not add extra spacing. */
 .translation-text.rendered {
   white-space: normal;
 }

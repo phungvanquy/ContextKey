@@ -124,6 +124,36 @@
     return html.join('\n');
   }
 
+  // Reparse the accumulated source, not individual deltas: Markdown delimiters
+  // can span chunks. Coalesce bursts into one update per browser frame, and
+  // flush/cancel before terminal states so a queued frame cannot overwrite them.
+  function createMarkdownRenderer(element, afterRender) {
+    let source = '';
+    let frame = null;
+
+    function cancel() {
+      if (frame !== null) global.cancelAnimationFrame(frame);
+      frame = null;
+    }
+
+    function flush(text) {
+      cancel();
+      source = text;
+      element.innerHTML = render(source);
+      if (afterRender) afterRender();
+    }
+
+    return {
+      schedule(text) {
+        source = text;
+        if (frame === null) frame = global.requestAnimationFrame(() => flush(source));
+      },
+      flush,
+      cancel,
+    };
+  }
+
   global.renderMarkdown = render;
+  global.createMarkdownRenderer = createMarkdownRenderer;
   global.escapeHtml = escapeHtml;
 })(window);

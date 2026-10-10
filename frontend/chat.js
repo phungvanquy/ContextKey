@@ -168,6 +168,7 @@ function beginTurn(userMessage, existingBubble) {
   aiEl.innerHTML = '<span class="typing" aria-label="Waiting for a reply"><span></span><span></span><span></span></span>';
   if (!existingBubble) transcript.appendChild(aiEl);
   let full = '';
+  const markdownRenderer = createMarkdownRenderer(aiEl, scrollToBottom);
   streaming = true;
   updateControls();
   scrollToBottom();
@@ -178,6 +179,7 @@ function beginTurn(userMessage, existingBubble) {
     failed: false,
     release() {
       if (currentTurn !== this) return;
+      markdownRenderer.cancel();
       currentTurn = null;
       streaming = false;
       aiEl.classList.remove('is-streaming');
@@ -187,12 +189,12 @@ function beginTurn(userMessage, existingBubble) {
     appendInterim(delta) {
       if (this.failed) return;
       full += delta;
-      aiEl.textContent = full;
-      scrollToBottom();
+      markdownRenderer.schedule(full);
     },
     fail(error) {
       if (this.failed) return;
       this.failed = true;
+      markdownRenderer.cancel();
       aiEl.classList.remove('is-streaming');
       aiEl.classList.add('msg-error');
       aiEl.replaceChildren();
@@ -212,7 +214,7 @@ function beginTurn(userMessage, existingBubble) {
         if (!full.trim()) {
           this.fail({ summary: 'The model returned an empty reply. Try again.', retryable: true });
         } else {
-          aiEl.innerHTML = renderMarkdown(full);
+          markdownRenderer.flush(full);
           const index = history.indexOf(userMessage);
           if (index >= 0) history.splice(index + 1, 0, { role: 'assistant', content: full.trim() });
           if (history.length > 50) history = history.slice(-50);

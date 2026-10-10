@@ -77,17 +77,24 @@ The window SHALL size to its content: an estimate derived from the source text l
 
 ### Requirement: Streaming render
 
-The popup SHALL render translation chunks as they arrive.
+The popup SHALL render accumulated translation chunks as Markdown as they arrive, escaping untrusted HTML before formatting.
 
 #### Scenario: Chunks appended live
 
 - **WHEN** translation chunks are received from the backend
-- **THEN** a loading indicator is shown until the first chunk arrives, after which chunks are appended to the result area in order as plain text
+- **THEN** a loading indicator is shown until the first chunk arrives, after which accumulated chunks are rendered as Markdown in the result area
+- **AND** delimiters split across chunks are interpreted from the accumulated source; incomplete syntax may remain literal until more text arrives
 
 #### Scenario: Stream completion
 
 - **WHEN** the stream completes
-- **THEN** the loading indicator is no longer shown and the full translated text remains visible and selectable
+- **THEN** any pending render is flushed immediately, the loading indicator is no longer shown, and the full translated text remains formatted and selectable
+- **AND** Copy retains the original Markdown source
+
+#### Scenario: Failure with a pending render
+
+- **WHEN** a stream fails before its latest chunk has been painted
+- **THEN** the formatted partial translation remains visible alongside the error, and retry clears it before the next stream starts
 
 ### Requirement: Popup dismissal
 

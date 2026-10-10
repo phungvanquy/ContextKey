@@ -20,12 +20,22 @@ Assistant messages SHALL render Markdown as styled HTML: bold, italic, combined 
 - **WHEN** an assistant message contains headings, fenced code blocks, or bullet/ordered lists
 - **THEN** headings render at their level, code blocks render in a monospaced block with distinct background, and lists render with appropriate markers and indentation
 
-#### Scenario: Rendering finalized on completion
+#### Scenario: Markdown renders during streaming
 
 - **WHEN** a response is still streaming
-- **THEN** partial content is shown as it arrives (may be plain/interim text)
+- **THEN** the accumulated content is rendered as Markdown as chunks arrive, without waiting for completion
+- **AND** delimiters split across chunks are interpreted from the accumulated source; incomplete syntax may remain literal until more text arrives
+
+#### Scenario: Rendering finalized on completion
+
 - **WHEN** the response completes
-- **THEN** the full message is rendered with final Markdown formatting
+- **THEN** any pending render is flushed immediately so the full message is visible with final Markdown formatting
+- **AND** chat history retains the original Markdown source
+
+#### Scenario: Failure with a pending render
+
+- **WHEN** a stream fails before its latest chunk has been painted
+- **THEN** the partial response is rendered alongside the error, and a queued update cannot overwrite the error or a later retry
 
 #### Scenario: Untrusted content is not executable
 
