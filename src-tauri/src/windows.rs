@@ -42,6 +42,9 @@ fn build_cursor_popup(app: &AppHandle, spec: &PopupSpec) -> Result<tauri::Webvie
         .min_inner_size(spec.min_width, spec.min_height)
         .decorations(false)
         .transparent(true)
+        // Native shadows add a white outline to undecorated Windows windows.
+        // window.css owns the inset, rounded frame, and shadow instead.
+        .shadow(false)
         .always_on_top(true)
         .skip_taskbar(spec.skip_taskbar)
         .resizable(true)
@@ -437,7 +440,7 @@ pub fn show_toast(app: &AppHandle, message: &str, cursor_x: f64, cursor_y: f64) 
     }
 
     let toast_w: f64 = 300.0;
-    let toast_h: f64 = 44.0;
+    let toast_h: f64 = 60.0;
     let url = format!("toast.html?message={}", url_encode(message));
 
     let window = match WebviewWindowBuilder::new(app, "toast", WebviewUrl::App(url.into()))
@@ -445,6 +448,7 @@ pub fn show_toast(app: &AppHandle, message: &str, cursor_x: f64, cursor_y: f64) 
         .inner_size(toast_w, toast_h)
         .decorations(false)
         .transparent(true)
+        .shadow(false)
         .always_on_top(true)
         .skip_taskbar(true)
         .resizable(false)

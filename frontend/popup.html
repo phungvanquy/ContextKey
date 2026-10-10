@@ -4,67 +4,68 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ContextKey — Translation</title>
+  <link rel="icon" type="image/png" href="brand.png" />
   <link rel="stylesheet" href="theme.css" />
+  <link rel="stylesheet" href="window.css" />
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
   <script src="icons.js"></script>
-  <!-- Header: drag region + language label + close button -->
-  <div class="header" data-tauri-drag-region>
-    <span class="popup-title" data-tauri-drag-region><span class="window-mark" aria-hidden="true"><svg class="ic"><use href="#ic-languages"/></svg></span><span data-tauri-drag-region>Translation</span></span>
-    <span class="lang-label" id="lang-label" data-tauri-drag-region>
-      <svg class="ic ic-arrow" aria-hidden="true"><use href="#ic-arrow-right"/></svg>
-      <span id="lang-name" data-tauri-drag-region>Vietnamese</span>
-    </span>
-    <button class="close-btn" id="close-btn" title="Close (Esc)" aria-label="Close">
-      <svg class="ic" aria-hidden="true"><use href="#ic-close"/></svg>
-    </button>
-  </div>
-
-  <!-- Original text (muted, truncated) -->
-  <div class="source-strip">
-    <span class="source-label"><svg class="ic" aria-hidden="true"><use href="#ic-text"/></svg>Original</span>
-    <div class="original" id="original-text"></div>
-  </div>
-
-  <!-- Separator -->
-  <div class="separator"></div>
-
-  <!-- Translation result area -->
-  <div class="result-area" id="result-area">
-    <!-- Spinner shown until first chunk arrives -->
-    <div class="spinner" id="spinner">
-      <svg class="ic ic-spin" aria-hidden="true"><use href="#ic-spinner"/></svg>
-      <span class="spinner-label">Translating…</span>
-    </div>
-    <!-- Translation output (hidden until first chunk) -->
-    <div class="translation-text" id="translation-text" style="display:none"></div>
-    <!-- Failure state (hidden unless the request fails) -->
-    <div class="error-box" id="error-box" hidden>
-      <p class="error-summary" id="error-summary"></p>
-      <details class="error-details" id="error-details">
-        <summary class="error-details-toggle">Details</summary>
-        <pre class="error-detail-text" id="error-detail-text"></pre>
-      </details>
-      <button class="btn-retry" id="retry-btn" hidden>
-        <svg class="ic" aria-hidden="true"><use href="#ic-refresh"/></svg>
-        <span>Retry</span>
+  <div class="popup-window floating-window">
+    <!-- Header: drag region + language label + close button -->
+    <div class="header" data-tauri-drag-region>
+      <span class="popup-title" data-tauri-drag-region><span class="window-mark window-brand" aria-hidden="true"><img class="brand-logo" src="brand.png" alt="" width="30" height="30" /></span><span data-tauri-drag-region>Translation</span></span>
+      <span class="lang-label" id="lang-label" data-tauri-drag-region>
+        <svg class="ic ic-arrow" aria-hidden="true"><use href="#ic-arrow-right"/></svg>
+        <span id="lang-name" data-tauri-drag-region>Vietnamese</span>
+      </span>
+      <button class="close-btn" id="close-btn" title="Close (Esc)" aria-label="Close">
+        <svg class="ic" aria-hidden="true"><use href="#ic-close"/></svg>
       </button>
     </div>
-  </div>
 
-  <!-- Footer hint + actions -->
-  <div class="footer">
-    <button class="speak-btn" id="speak-btn" title="Read aloud" aria-label="Read aloud">
-      <svg class="ic" aria-hidden="true"><use href="#ic-volume"/></svg>
-    </button>
-    <span class="hint"><kbd>Esc</kbd> to close</span>
-    <button class="copy-btn" id="copy-btn" title="Copy translation" disabled>
-      <svg class="ic" aria-hidden="true"><use href="#ic-copy"/></svg>
-      <span class="copy-label">Copy</span>
-    </button>
-  </div>
+    <!-- Original text (muted, truncated) -->
+    <div class="source-strip">
+      <span class="source-label"><svg class="ic" aria-hidden="true"><use href="#ic-text"/></svg>Original</span>
+      <div class="original" id="original-text"></div>
+    </div>
 
+    <!-- Translation result area -->
+    <div class="result-area" id="result-area">
+      <!-- Spinner shown until first chunk arrives -->
+      <div class="spinner" id="spinner">
+        <svg class="ic ic-spin" aria-hidden="true"><use href="#ic-spinner"/></svg>
+        <span class="spinner-label">Translating…</span>
+      </div>
+      <!-- Translation output (hidden until first chunk) -->
+      <div class="translation-text" id="translation-text" style="display:none"></div>
+      <!-- Failure state (hidden unless the request fails) -->
+      <div class="error-box" id="error-box" hidden>
+        <p class="error-summary" id="error-summary"></p>
+        <details class="error-details" id="error-details">
+          <summary class="error-details-toggle">Details</summary>
+          <pre class="error-detail-text" id="error-detail-text"></pre>
+        </details>
+        <button class="btn-retry" id="retry-btn" hidden>
+          <svg class="ic" aria-hidden="true"><use href="#ic-refresh"/></svg>
+          <span>Retry</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer hint + actions -->
+    <div class="footer">
+      <button class="speak-btn" id="speak-btn" title="Read aloud" aria-label="Read aloud">
+        <svg class="ic" aria-hidden="true"><use href="#ic-volume"/></svg>
+      </button>
+      <span class="hint"><kbd>Esc</kbd> to close</span>
+      <button class="copy-btn" id="copy-btn" title="Copy translation" disabled>
+        <svg class="ic" aria-hidden="true"><use href="#ic-copy"/></svg>
+        <span class="copy-label">Copy</span>
+      </button>
+    </div>
+
+  </div>
   <script src="markdown.js"></script>
   <script src="popup.js"></script>
 </body>

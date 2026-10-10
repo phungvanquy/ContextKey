@@ -1,25 +1,8 @@
 /* chat.css — chat popup styles (indigo theme, rounded + elevated) */
 
-html {
-  background: transparent;
-}
-
-html, body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: transparent;
-}
-
 .chat-window {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-window);
-  box-shadow: var(--shadow);
-  overflow: hidden;
 }
 
 /* ── Header (drag zone) ─────────────────────────────────────────────── */
@@ -197,8 +180,7 @@ html, body {
 .empty-illustration { position: relative; display: flex; align-items: center; justify-content: center; width: 158px; height: 104px; margin: 0 auto 22px; }
 .empty-illustration::before { content: ''; position: absolute; width: 98px; height: 98px; border: 1px solid var(--accent-border); border-radius: 50%; }
 .empty-illustration::after { content: ''; position: absolute; width: 136px; height: 136px; border: 1px dashed var(--border); border-radius: 50%; }
-.empty-mark { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 21px; background: var(--brand-gradient); color: var(--btn-primary-fg); box-shadow: var(--shadow-button); transform: rotate(-8deg); z-index: 1; }
-.empty-mark .ic { width: 31px; height: 31px; transform: rotate(8deg); }
+.empty-mark { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 18px; box-shadow: var(--shadow-button); z-index: 1; }
 .orbit-icon { position: absolute; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; background: var(--surface); color: var(--accent); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-card); z-index: 2; }
 .orbit-text { top: 3px; right: 5px; transform: rotate(10deg); }
 .orbit-chat { bottom: 2px; left: 5px; transform: rotate(-10deg); }
@@ -540,4 +522,10 @@ html, body {
   .context-strip { padding: 7px 10px; margin: 8px 10px 0; }
   .selection-notice > span { display: none; }
   .chat-status { padding: 4px 10px; max-height: 32px; }
+}
+
+/* Reserve space for context, attachments, and the frame at the minimum size. */
+@media (max-height: 360px) {
+  .chat-input { max-height: 44px; }
+  .composer { padding-top: 6px; padding-bottom: 6px; }
 }

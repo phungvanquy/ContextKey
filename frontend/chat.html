@@ -4,16 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ContextKey — Chat</title>
+  <link rel="icon" type="image/png" href="brand.png" />
   <link rel="stylesheet" href="theme.css" />
+  <link rel="stylesheet" href="window.css" />
   <link rel="stylesheet" href="chat.css" />
 </head>
 <body>
   <script src="icons.js"></script>
-  <div class="chat-window">
+  <div class="chat-window floating-window">
     <!-- Header: the ONLY draggable zone -->
     <div class="header" data-tauri-drag-region>
       <span class="header-title" id="header-title" data-tauri-drag-region>
-        <span class="window-mark" aria-hidden="true"><svg class="ic"><use href="#ic-sparkles"/></svg></span>
+        <span class="window-mark window-brand" aria-hidden="true"><img class="brand-logo" src="brand.png" alt="" width="30" height="30" /></span>
         <span class="header-copy" data-tauri-drag-region><span id="header-label" data-tauri-drag-region>Chat</span><span class="header-subtitle" data-tauri-drag-region>ContextKey</span></span>
       </span>
       <button class="btn-quiet" id="new-chat-btn" title="Start a new conversation"><svg class="ic" aria-hidden="true"><use href="#ic-plus"/></svg>New chat</button>
@@ -47,7 +49,7 @@
         <div class="empty-state" id="empty-state">
           <div class="empty-illustration" aria-hidden="true">
             <span class="orbit-icon orbit-text"><svg class="ic"><use href="#ic-languages"/></svg></span>
-            <span class="empty-mark"><svg class="ic"><use href="#ic-sparkles"/></svg></span>
+            <span class="empty-mark"><img class="brand-logo" src="brand.png" alt="" width="64" height="64" /></span>
             <span class="orbit-icon orbit-chat"><svg class="ic"><use href="#ic-chat"/></svg></span>
           </div>
           <span class="empty-eyebrow">A little clarity, on demand</span>

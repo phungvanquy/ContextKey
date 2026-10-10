@@ -56,7 +56,7 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-Tests run in light and dark themes and cover chat retry, attachment retention and eviction, context resets, scrolling, keyboard navigation, and settings validation. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium executable. Native Windows window reuse, focus, shortcuts, capture, and monitor scaling still require desktop validation.
+Tests run in light and dark themes and cover chat retry, attachment retention and eviction, context resets, scrolling, keyboard navigation, settings validation, and rendered popup edge transparency at normal/minimum sizes. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium executable. Native Windows window reuse, focus, shortcuts, capture, and monitor scaling still require desktop validation.
 
 Build the Windows executable and NSIS installer:
 
@@ -134,12 +134,13 @@ Before pushing a release tag, synchronize the versions in `src-tauri/Cargo.toml`
 
 ## App icon maintenance
 
-The original supplied artwork is [`brand.png`](../src-tauri/icons/brand.png), a 1254×1254 image. The committed generator produces:
+The original supplied artwork is [`brand.png`](../src-tauri/icons/brand.png), a 1254×1254 image from the [current logo share](https://chatgpt.com/s/m_6ac9ab048d608191b153a164b7fffd0c). The committed generator produces:
 
 | Asset | Format |
 | --- | --- |
 | `icon.png` | 512×512 RGBA PNG. |
 | `icon.ico` | Windows ICO containing 16, 20, 24, 32, 40, 48, 64, 96, 128, and 256-pixel square images. |
+| `frontend/brand.png` | 128×128 RGBA PNG for settings, popup headers, the chat welcome screen, notifications, and favicons. |
 
 To regenerate the icons, use a Python environment with Pillow:
 
@@ -148,7 +149,7 @@ python -m pip install Pillow
 python src-tauri/icons/generate_icon.py
 ```
 
-The script preserves the source artwork and aspect ratio. A non-square replacement is padded to fit the square canvas. Commit the source and both generated outputs together. The app, tray, and installer consume the generated assets through the existing Tauri configuration; the build does not run Python.
+The script preserves the source artwork and aspect ratio. A non-square replacement is padded to fit the square canvas. Commit the source and all three generated outputs together. The app, tray, installer, and README consume the desktop assets; the UI uses the frontend copy. The build does not run Python.
 
 ## Contributing documentation and fixes
 

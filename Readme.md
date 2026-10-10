@@ -8,7 +8,7 @@
 
 ContextKey brings translation and AI assistance to your Windows desktop. Select text or capture a screen region, invoke a shortcut, and work with the result in a popup beside your cursor.
 
-[Download](https://github.com/phungvanquy/ContextKey/releases) · [Getting started](#getting-started) · [Configuration](#configuration) · [Development](docs/DEVELOPMENT.md) · [Report an issue](https://github.com/phungvanquy/ContextKey/issues)
+[Download](https://github.com/phungvanquy/ContextKey/releases) · [UI previews](docs/previews/README.md) · [Getting started](#getting-started) · [Configuration](#configuration) · [Development](docs/DEVELOPMENT.md) · [Report an issue](https://github.com/phungvanquy/ContextKey/issues)
 
 ## Features
 

@@ -384,6 +384,45 @@ test('multiline and IME input do not accidentally send', async ({ page }) => {
   expect(await requests(page)).toHaveLength(1);
 });
 
+for (const flow of ['chat', 'translate']) {
+  test(`${flow} has transparent outer edges and unclipped rounded chrome`, async ({ page }) => {
+    await bridge(page);
+    await page.goto(flow === 'chat' ? '/chat.html' : '/popup.html?original=Hello');
+    const minimum = flow === 'chat' ? { width: 380, height: 320 } : { width: 360, height: 160 };
+    for (const viewport of [{ width: 460, height: 340 }, minimum]) {
+      await page.setViewportSize(viewport);
+      const screenshot = await page.screenshot({ omitBackground: true });
+      // Inspect the rendered pixels, not the CSS declarations: a transparent
+      // html element alone doesn't prevent body background propagation.
+      const pixels = await page.evaluate(async base64 => {
+        const image = new Image();
+        image.src = 'data:image/png;base64,' + base64;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const context = canvas.getContext('2d');
+        context.drawImage(image, 0, 0);
+        const width = canvas.width, height = canvas.height;
+        const alpha = (x, y) => context.getImageData(x, y, 1, 1).data[3];
+        return {
+          outer: [
+            alpha(0, 0), alpha(width - 1, 0),
+            alpha(0, height - 1), alpha(width - 1, height - 1),
+            alpha(Math.floor(width / 2), 0), alpha(Math.floor(width / 2), height - 1),
+            alpha(0, Math.floor(height / 2)), alpha(width - 1, Math.floor(height / 2)),
+          ],
+          center: alpha(Math.floor(width / 2), Math.floor(height / 2)),
+        };
+      }, screenshot.toString('base64'));
+      expect(pixels.outer).toEqual(Array(8).fill(0));
+      expect(pixels.center).toBe(255);
+      await expect(page.locator('#close-btn')).toBeInViewport();
+      await expect(page.locator(flow === 'chat' ? '#send-btn' : '#copy-btn')).toBeInViewport();
+    }
+  });
+}
+
 test('settings actions remain visible at the default window size', async ({ page }) => {
   await openSettings(page);
   await expect(page.locator('#save-btn')).toBeInViewport();

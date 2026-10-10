@@ -9,18 +9,18 @@
 //! All values are LOGICAL pixels. The caller converts to physical using the
 //! cursor monitor's scale factor at the last possible moment.
 
-/// Header + source card + footer + result padding + window border, in logical px.
+/// Header + source card + footer + result padding + frame/gutter, in logical px.
 /// Approximation of the fixed chrome in `popup.css`; only used for the estimate.
-pub const CHROME_H: f64 = 220.0;
+pub const CHROME_H: f64 = 236.0;
 /// The compact layout in popup.css keeps short translations small.
-const COMPACT_CHROME_H: f64 = 138.0;
+const COMPACT_CHROME_H: f64 = 134.0;
 const COMPACT_MAX_H: f64 = 240.0;
 
 /// Rendered line height of `.translation-text` (14px font × 1.75 line-height).
 pub const LINE_H: f64 = 24.5;
 
-/// Usable content width: DEFAULT_W minus the result-area's 20px side padding ×2.
-pub const CONTENT_W: f64 = 420.0;
+/// DEFAULT_W minus the 8px frame gutter and 20px result padding on each side.
+pub const CONTENT_W: f64 = 404.0;
 
 /// Average advance width of one character at 14px in the system font. Chosen a
 /// touch wide on purpose so the estimate errs tall rather than short.

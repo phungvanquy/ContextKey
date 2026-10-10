@@ -1,31 +1,17 @@
 /* toast.css — transient cursor-anchored notice */
 
-html {
-  background: transparent;
-}
-
-html, body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: transparent;
-}
-
 .toast {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 100%;
   padding: 0 14px;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-window);
-  box-shadow: var(--shadow);
   user-select: none;
 }
 
 .toast-icon {
-  color: var(--accent);
+  flex-shrink: 0;
+  border-radius: 5px;
 }
 
 .toast-message {

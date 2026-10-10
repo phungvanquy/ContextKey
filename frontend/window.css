@@ -1,0 +1,25 @@
+/* Frameless windows paint their chrome inside a transparent page.
+   Keeping the page transparent prevents the body's background from painting
+   square corners behind the frame. The inset gives the CSS shadow room.
+   Native shadows are disabled in windows.rs to avoid Windows' extra outline. */
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  padding: var(--window-gutter);
+}
+
+.floating-window {
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-window);
+  box-shadow: var(--window-shadow);
+  overflow: hidden;
+  isolation: isolate;
+}

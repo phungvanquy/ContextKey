@@ -95,7 +95,8 @@ If the hook affects composition, record the reproduction details and consult the
 - [ ] Translation, chat, and Settings remain readable in both light and dark themes, with consistent focus and hover states.
 - [ ] Interface icons inherit their state colors, and loading indicators animate correctly.
 - [ ] Rounded popup corners, shadows, topmost behavior, and positioning work together on Windows.
-- [ ] The app, tray, and installer show the supplied ContextKey logo clearly, including at small icon sizes.
+- [ ] Translation and chat have transparent corners without an extra white outline or clipped shadow in light/dark mode at 100%, 125%, and 200% scaling. Dragging and resizing still work after disabling native shadows.
+- [ ] The app, tray, installer, Settings, popup headers, notifications, and chat welcome screen show the supplied ContextKey logo clearly, including at small icon sizes.
 
 ## Design review questions
 

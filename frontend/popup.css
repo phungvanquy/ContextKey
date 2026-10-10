@@ -1,23 +1,8 @@
 /* popup.css — translation popup styles (indigo theme, rounded + elevated) */
 
-html {
-  background: transparent;
-}
-
-html, body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-body {
+.popup-window {
   display: flex;
   flex-direction: column;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-window);
-  box-shadow: var(--shadow);
-  overflow: hidden;
 }
 
 .header {
@@ -92,10 +77,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-shrink: 0;
-}
-
-.separator {
-  display: none;
 }
 
 .result-area {
@@ -339,12 +320,13 @@ body {
 }
 
 @media (max-height: 240px) {
-  .header { padding: 6px 12px; }
-  .window-mark { width: 26px; height: 26px; border-radius: 7px; }
+  .header { padding: 4px 12px; }
+  .window-mark { width: 24px; height: 24px; border-radius: 7px; }
+  .close-btn { padding: 4px; }
   .source-strip { display: flex; align-items: center; gap: 8px; margin: 6px 12px 0; padding: 5px 8px; }
   .source-label { margin: 0; flex-shrink: 0; font-size: 9px; }
   .source-label .ic { display: none; }
   .original { min-width: 0; flex-shrink: 1; font-size: 11px; }
-  .result-area { padding: 9px 14px; }
-  .footer { padding: 5px 12px; }
+  .result-area { padding: 4px 14px; }
+  .footer { padding: 3px 12px; }
 }

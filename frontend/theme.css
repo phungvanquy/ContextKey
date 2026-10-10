@@ -48,10 +48,11 @@
   --radius-window: 16px;
   --radius-card:   14px;
   --radius-input:  9px;
+  --window-gutter: 8px;
+  --window-shadow: 0 2px 6px -2px rgba(0, 0, 0, 0.4);
   --shadow: 0 16px 48px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.16);
   --shadow-card: 0 2px 6px rgba(0, 0, 0, 0.08);
   --shadow-button: 0 2px 5px rgba(25, 14, 71, 0.2);
-  --brand-gradient: linear-gradient(145deg, #9681F8, #6950D3);
   --backdrop: rgba(0, 0, 0, 0.6);
 
   --font-family: 'Segoe UI', 'SF Pro Text', 'Inter', system-ui, 'Noto Sans', sans-serif;
@@ -97,6 +98,7 @@
     --shadow: 0 16px 48px rgba(36, 29, 75, 0.1), 0 2px 8px rgba(36, 29, 75, 0.04);
     --shadow-card: 0 2px 6px rgba(36, 29, 75, 0.025);
     --shadow-button: 0 2px 5px rgba(76, 50, 158, 0.12);
+    --window-shadow: 0 2px 6px -2px rgba(36, 29, 75, 0.22);
   }
 }
 
@@ -151,13 +153,17 @@ kbd {
   flex-shrink: 0;
   width: 42px;
   height: 42px;
-  color: var(--btn-primary-fg);
-  background: var(--brand-gradient);
   border-radius: 13px;
   box-shadow: var(--shadow-button);
 }
 
-.brand-mark .ic { width: 24px; height: 24px; }
+.brand-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+}
 
 .window-mark {
   display: inline-flex;
@@ -171,6 +177,8 @@ kbd {
   color: var(--accent);
   pointer-events: none;
 }
+
+.window-brand { background: transparent; }
 
 .sr-only {
   position: absolute;
