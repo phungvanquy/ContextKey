@@ -40,7 +40,7 @@ Start the app in development mode:
 cargo tauri dev --config src-tauri/tauri.conf.json
 ```
 
-The app opens Settings when no API key is configured. Use an endpoint and models available to your account, then select **Test connection** and **Save**. The development app uses the same user-profile settings files as the installed app.
+The app opens Settings when no API key is configured. Use an endpoint and models available to your account, then select **Test connection** and **Save changes**. The development app uses the same user-profile settings files as the installed app.
 
 Run the Rust unit tests:
 

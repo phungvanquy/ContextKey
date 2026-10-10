@@ -10,165 +10,137 @@
 <body>
   <script src="icons.js"></script>
   <div class="container">
-    <h1 class="title">ContextKey Settings</h1>
+    <header class="settings-header">
+      <div class="brand-mark" aria-hidden="true"><svg class="ic"><use href="#ic-sparkles"/></svg></div>
+      <div class="brand-copy">
+        <h1 class="title">ContextKey</h1>
+        <p class="tagline">Understanding, a shortcut away.</p>
+      </div>
+      <span class="settings-label"><svg class="ic" aria-hidden="true"><use href="#ic-sliders"/></svg>Settings</span>
+    </header>
+
+    <nav class="settings-nav" aria-label="Settings sections">
+      <a class="nav-item" href="#connection" aria-current="location"><svg class="ic" aria-hidden="true"><use href="#ic-plug"/></svg>Connection</a>
+      <a class="nav-item" href="#translation"><svg class="ic" aria-hidden="true"><use href="#ic-languages"/></svg>Translation</a>
+      <a class="nav-item" href="#shortcuts"><svg class="ic" aria-hidden="true"><use href="#ic-keyboard"/></svg>Shortcuts</a>
+    </nav>
 
     <form id="settings-form" autocomplete="off" novalidate>
-      <div class="form-fields">
-      <div class="field">
-        <label class="label" for="api-key">API Key</label>
-        <input
-          class="input"
-          type="password"
-          id="api-key"
-          name="api_key"
-          placeholder="sk-…"
-          autocomplete="off"
-          spellcheck="false"
-          aria-describedby="api-key-error"
-        />
-        <span class="field-hint">Your OpenAI-compatible API key.</span>
-        <span class="field-error" id="api-key-error" hidden></span>
-      </div>
+      <main class="form-fields" aria-label="Settings">
+        <section class="settings-section" id="connection" aria-labelledby="connection-title" tabindex="-1">
+          <div class="section-heading">
+            <span class="section-icon" aria-hidden="true"><svg class="ic"><use href="#ic-plug"/></svg></span>
+            <div><h2 id="connection-title">AI connection</h2><p>Bring your favorite models to your workflow.</p></div>
+          </div>
+          <div class="section-body">
+            <div class="field">
+              <label class="label" for="api-key">API key</label>
+              <div class="input-with-action">
+                <input class="input" type="password" id="api-key" name="api_key" placeholder="sk-…" autocomplete="off" spellcheck="false" aria-describedby="api-key-hint api-key-error" />
+                <button type="button" class="input-action" id="toggle-api-key" aria-label="Show API key" aria-controls="api-key" aria-pressed="false" title="Show API key"><svg class="ic" aria-hidden="true"><use href="#ic-eye"/></svg></button>
+              </div>
+              <span class="field-hint" id="api-key-hint">Use a key from your OpenAI-compatible provider.</span>
+              <span class="field-error" id="api-key-error" hidden></span>
+            </div>
+            <div class="field">
+              <label class="label" for="base-url">Base URL</label>
+              <input class="input" type="text" id="base-url" name="base_url" placeholder="https://api.openai.com/v1" spellcheck="false" aria-describedby="base-url-hint base-url-error" />
+              <span class="field-hint" id="base-url-hint">Your provider’s endpoint, local server, or proxy.</span>
+              <span class="field-error" id="base-url-error" hidden></span>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label class="label" for="model">Model</label>
+                <input class="input" type="text" id="model" name="model" placeholder="e.g. gpt-4o-mini" spellcheck="false" aria-describedby="model-hint model-error" required />
+                <span class="field-hint" id="model-hint">For translation and chat.</span>
+                <span class="field-error" id="model-error" hidden></span>
+              </div>
+              <div class="field">
+                <label class="label" for="vision-model">Vision model <span class="optional">Optional</span></label>
+                <input class="input" type="text" id="vision-model" name="vision_model" placeholder="Same as main model" spellcheck="false" aria-describedby="vision-model-hint" />
+                <span class="field-hint" id="vision-model-hint">For screenshot questions.</span>
+              </div>
+            </div>
+          </div>
+        </section>
 
-      <div class="field">
-        <label class="label" for="base-url">Base URL</label>
-        <input
-          class="input"
-          type="text"
-          id="base-url"
-          name="base_url"
-          placeholder="https://api.openai.com/v1"
-          spellcheck="false"
-          aria-describedby="base-url-error"
-        />
-        <span class="field-hint">OpenAI-compatible endpoint. Change for local LLMs or proxies.</span>
-        <span class="field-error" id="base-url-error" hidden></span>
-      </div>
+        <section class="settings-section" id="translation" aria-labelledby="translation-title" tabindex="-1">
+          <div class="section-heading">
+            <span class="section-icon" aria-hidden="true"><svg class="ic"><use href="#ic-languages"/></svg></span>
+            <div><h2 id="translation-title">Make it your language</h2><p>Fine-tune how your translations sound.</p></div>
+          </div>
+          <div class="section-body">
+            <div class="field">
+              <label class="label" for="target-lang">Target language</label>
+              <input class="input" type="text" id="target-lang" name="target_language" placeholder="e.g. Vietnamese, French, Japanese" spellcheck="false" aria-describedby="target-lang-hint target-lang-error" required />
+              <span class="field-hint" id="target-lang-hint">Selected text will be translated into this language.</span>
+              <span class="field-error" id="target-lang-error" hidden></span>
+            </div>
+            <div class="field">
+              <div class="label-row">
+                <label class="label" for="custom-prompt">Translation instructions</label>
+                <button type="button" class="btn-link" id="reset-prompt-btn"><svg class="ic" aria-hidden="true"><use href="#ic-refresh"/></svg><span>Reset to default</span></button>
+              </div>
+              <textarea class="input textarea" id="custom-prompt" name="custom_prompt" rows="4" spellcheck="false" placeholder="Describe your preferred tone or translation style…" aria-describedby="prompt-hint"></textarea>
+              <span class="field-hint" id="prompt-hint">Use <code>{target_language}</code> for your language. Leave blank for the default instructions.</span>
+            </div>
+          </div>
+        </section>
 
-      <div class="field">
-        <label class="label" for="model">Model</label>
-        <input
-          class="input"
-          type="text"
-          id="model"
-          name="model"
-          placeholder="gpt-4o-mini"
-          spellcheck="false"
-          aria-describedby="model-error"
-          required
-        />
-        <span class="field-hint">Model identifier, e.g. gpt-4o-mini or llama3.</span>
-        <span class="field-error" id="model-error" hidden></span>
-      </div>
+        <section class="settings-section" id="shortcuts" aria-labelledby="shortcuts-title" tabindex="-1">
+          <div class="section-heading">
+            <span class="section-icon" aria-hidden="true"><svg class="ic"><use href="#ic-keyboard"/></svg></span>
+            <div><h2 id="shortcuts-title">One shortcut away</h2><p>Your assistant, wherever you’re working.</p></div>
+          </div>
+          <div class="section-body hotkeys-section">
+            <div class="hotkeys-header">
+              <span class="eyebrow">Keyboard shortcuts</span>
+              <button type="button" class="btn-link" id="reset-hotkeys-btn"><svg class="ic" aria-hidden="true"><use href="#ic-refresh"/></svg><span>Reset to defaults</span></button>
+            </div>
+            <div class="hotkey-row" data-action="translate">
+              <span class="hotkey-label"><svg class="ic" aria-hidden="true"><use href="#ic-languages"/></svg>Translate</span>
+              <select class="hotkey-prefix" aria-label="Translate prefix">
+                <option value="Ctrl+C">Ctrl+C</option><option value="Ctrl+Insert">Ctrl+Insert</option><option value="RCtrl">Right Ctrl</option><option value="RShift">Right Shift</option>
+              </select>
+              <svg class="ic hotkey-arrow" aria-label="then"><use href="#ic-arrow-right"/></svg>
+              <button type="button" class="hotkey-then" aria-label="Translate trigger key" data-key="">…</button>
+              <span class="hotkey-warn"></span>
+            </div>
+            <div class="hotkey-row" data-action="chat">
+              <span class="hotkey-label"><svg class="ic" aria-hidden="true"><use href="#ic-chat"/></svg>Chat</span>
+              <select class="hotkey-prefix" aria-label="Chat prefix">
+                <option value="Ctrl+C">Ctrl+C</option><option value="Ctrl+Insert">Ctrl+Insert</option><option value="RCtrl">Right Ctrl</option><option value="RShift">Right Shift</option>
+              </select>
+              <svg class="ic hotkey-arrow" aria-label="then"><use href="#ic-arrow-right"/></svg>
+              <button type="button" class="hotkey-then" aria-label="Chat trigger key" data-key="">…</button>
+              <span class="hotkey-warn"></span>
+            </div>
+            <div class="hotkey-row" data-action="screenshot">
+              <span class="hotkey-label"><svg class="ic" aria-hidden="true"><use href="#ic-scan"/></svg>Screenshot</span>
+              <select class="hotkey-prefix" aria-label="Screenshot prefix">
+                <option value="Ctrl+C">Ctrl+C</option><option value="Ctrl+Insert">Ctrl+Insert</option><option value="RCtrl">Right Ctrl</option><option value="RShift">Right Shift</option>
+              </select>
+              <svg class="ic hotkey-arrow" aria-label="then"><use href="#ic-arrow-right"/></svg>
+              <button type="button" class="hotkey-then" aria-label="Screenshot trigger key" data-key="">…</button>
+              <span class="hotkey-warn"></span>
+            </div>
+            <p class="field-hint hotkeys-hint" id="hotkey-capture-help">Press the prefix, then the trigger key. To change a trigger, click its key and press a new one. <kbd>Esc</kbd> cancels; <kbd>Tab</kbd> moves on.</p>
+          </div>
+        </section>
+      </main>
 
-      <div class="field">
-        <label class="label" for="vision-model">Vision Model</label>
-        <input
-          class="input"
-          type="text"
-          id="vision-model"
-          name="vision_model"
-          placeholder=""
-          spellcheck="false"
-        />
-        <span class="field-hint">Model for screenshot/vision requests. Leave empty to use the main model.</span>
-      </div>
-
-      <div class="field">
-        <label class="label" for="target-lang">Target Language</label>
-        <input
-          class="input"
-          type="text"
-          id="target-lang"
-          name="target_language"
-          placeholder="Vietnamese"
-          spellcheck="false"
-          aria-describedby="target-lang-error"
-          required
-        />
-        <span class="field-hint">Language to translate into, e.g. Vietnamese, French.</span>
-        <span class="field-error" id="target-lang-error" hidden></span>
-      </div>
-
-      <div class="field">
-        <label class="label" for="custom-prompt">Custom Prompt</label>
-        <textarea
-          class="input textarea"
-          id="custom-prompt"
-          name="custom_prompt"
-          rows="4"
-          spellcheck="false"
-        ></textarea>
-        <div class="prompt-footer">
-          <span class="field-hint">Use <code>{target_language}</code> as a placeholder. Leave blank for default.</span>
-          <button type="button" class="btn-link" id="reset-prompt-btn">
-            <svg class="ic" aria-hidden="true"><use href="#ic-refresh"/></svg>
-            <span>Reset to default</span>
-          </button>
+      <footer class="actions">
+        <div class="save-feedback">
+          <span class="save-hint">Changes apply when saved.</span>
+          <p class="save-status neutral" id="save-status" role="status" aria-live="polite">Loading settings…</p>
         </div>
-      </div>
-
-      <!-- Hotkeys section -->
-      <div class="hotkeys-section">
-        <div class="hotkeys-header">
-          <h2 class="section-title">Hotkeys</h2>
-          <button type="button" class="btn-link" id="reset-hotkeys-btn">
-            <svg class="ic" aria-hidden="true"><use href="#ic-refresh"/></svg>
-            <span>Reset to defaults</span>
-          </button>
-        </div>
-        <p class="field-hint hotkeys-hint" id="hotkey-capture-help">Press the prefix, then the trigger key. To change a trigger, activate its button and press a key. Esc cancels; Tab moves to the next control.</p>
-
-        <div class="hotkey-row" data-action="translate">
-          <span class="hotkey-label">Translate</span>
-          <select class="hotkey-prefix" aria-label="Translate prefix">
-            <option value="Ctrl+C">Ctrl+C</option>
-            <option value="Ctrl+Insert">Ctrl+Insert</option>
-            <option value="RCtrl">Right Ctrl</option>
-            <option value="RShift">Right Shift</option>
-          </select>
-          <span class="hotkey-arrow">→</span>
-          <button type="button" class="hotkey-then" aria-label="Translate trigger key" data-key="">…</button>
-          <span class="hotkey-warn"></span>
-        </div>
-
-        <div class="hotkey-row" data-action="chat">
-          <span class="hotkey-label">Chat</span>
-          <select class="hotkey-prefix" aria-label="Chat prefix">
-            <option value="Ctrl+C">Ctrl+C</option>
-            <option value="Ctrl+Insert">Ctrl+Insert</option>
-            <option value="RCtrl">Right Ctrl</option>
-            <option value="RShift">Right Shift</option>
-          </select>
-          <span class="hotkey-arrow">→</span>
-          <button type="button" class="hotkey-then" aria-label="Chat trigger key" data-key="">…</button>
-          <span class="hotkey-warn"></span>
-        </div>
-
-        <div class="hotkey-row" data-action="screenshot">
-          <span class="hotkey-label">Screenshot</span>
-          <select class="hotkey-prefix" aria-label="Screenshot prefix">
-            <option value="Ctrl+C">Ctrl+C</option>
-            <option value="Ctrl+Insert">Ctrl+Insert</option>
-            <option value="RCtrl">Right Ctrl</option>
-            <option value="RShift">Right Shift</option>
-          </select>
-          <span class="hotkey-arrow">→</span>
-          <button type="button" class="hotkey-then" aria-label="Screenshot trigger key" data-key="">…</button>
-          <span class="hotkey-warn"></span>
-        </div>
-      </div>
-      </div>
-      <div class="actions">
         <div class="action-buttons">
-          <button type="button" class="btn-secondary" id="test-btn" disabled>Test connection</button>
-          <button type="submit" class="btn-primary" id="save-btn" disabled>Save</button>
+          <button type="button" class="btn-secondary" id="test-btn" disabled><svg class="ic" aria-hidden="true"><use href="#ic-plug"/></svg><span>Test connection</span></button>
+          <button type="submit" class="btn-primary" id="save-btn" disabled><svg class="ic" aria-hidden="true"><use href="#ic-check"/></svg><span>Save changes</span></button>
         </div>
-        <p class="save-status" id="save-status" role="status" aria-live="polite">Loading settings…</p>
-      </div>
+      </footer>
     </form>
   </div>
-
   <script src="settings.js"></script>
 </body>
 </html>

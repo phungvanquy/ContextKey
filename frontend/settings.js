@@ -50,8 +50,12 @@ function validateFields(forTest = false) {
 function updateActionState() {
   saveBtn.disabled = !configLoaded || saving || testing;
   testBtn.disabled = !configLoaded || saving || testing;
-  saveBtn.textContent = saving ? 'Saving…' : 'Save';
-  testBtn.textContent = testing ? 'Testing…' : 'Test connection';
+  saveBtn.querySelector('span').textContent = saving ? 'Saving…' : 'Save changes';
+  testBtn.querySelector('span').textContent = testing ? 'Testing…' : 'Test connection';
+  for (const [button, busy, icon] of [[saveBtn, saving, 'check'], [testBtn, testing, 'plug']]) {
+    button.querySelector('use').setAttribute('href', '#ic-' + (busy ? 'spinner' : icon));
+    button.querySelector('svg').classList.toggle('ic-spin', busy);
+  }
 }
 
 // ── base_url validation ─────────────────────────────────────────────────────
@@ -204,6 +208,51 @@ function showStatus(msg, variant) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+const apiKeyToggle = document.getElementById('toggle-api-key');
+apiKeyToggle.addEventListener('click', () => {
+  const reveal = apiKeyInput.type === 'password';
+  apiKeyInput.type = reveal ? 'text' : 'password';
+  apiKeyToggle.setAttribute('aria-pressed', String(reveal));
+  apiKeyToggle.setAttribute('aria-label', reveal ? 'Hide API key' : 'Show API key');
+  apiKeyToggle.title = reveal ? 'Hide API key' : 'Show API key';
+  apiKeyToggle.querySelector('use').setAttribute('href', reveal ? '#ic-eye-off' : '#ic-eye');
+});
+
+// Keep every field in one scrollable form so validation and keyboard focus can
+// always reach it. Section links follow both manual scrolling and field focus.
+const fieldsScroller = document.querySelector('.form-fields');
+const sectionLinks = [...document.querySelectorAll('.nav-item')];
+const settingsSections = sectionLinks.map(link => document.querySelector(link.getAttribute('href')));
+
+function updateSectionNavigation() {
+  const top = fieldsScroller.getBoundingClientRect().top + 24;
+  let current = settingsSections[0];
+  for (const section of settingsSections) {
+    if (section.getBoundingClientRect().top <= top) current = section;
+  }
+  if (fieldsScroller.scrollHeight > fieldsScroller.clientHeight &&
+      fieldsScroller.scrollTop + fieldsScroller.clientHeight >= fieldsScroller.scrollHeight - 2) {
+    current = settingsSections.at(-1);
+  }
+  sectionLinks.forEach((link, index) => {
+    if (settingsSections[index] === current) link.setAttribute('aria-current', 'location');
+    else link.removeAttribute('aria-current');
+  });
+}
+
+sectionLinks.forEach((link, index) => {
+  link.addEventListener('click', event => {
+    event.preventDefault();
+    settingsSections[index].focus({ preventScroll: true });
+    settingsSections[index].scrollIntoView({
+      block: 'start',
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+    });
+  });
+});
+fieldsScroller.addEventListener('scroll', updateSectionNavigation, { passive: true });
+new ResizeObserver(updateSectionNavigation).observe(fieldsScroller);
+
 form.addEventListener('submit', saveConfig);
 form.addEventListener('input', (event) => {
   if (event.target.matches('.input') && document.getElementById(event.target.id + '-error')) {

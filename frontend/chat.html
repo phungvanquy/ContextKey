@@ -13,10 +13,10 @@
     <!-- Header: the ONLY draggable zone -->
     <div class="header" data-tauri-drag-region>
       <span class="header-title" id="header-title" data-tauri-drag-region>
-        <svg class="ic ic-chat" aria-hidden="true"><use href="#ic-chat"/></svg>
-        <span id="header-label" data-tauri-drag-region>Chat</span>
+        <span class="window-mark" aria-hidden="true"><svg class="ic"><use href="#ic-sparkles"/></svg></span>
+        <span class="header-copy" data-tauri-drag-region><span id="header-label" data-tauri-drag-region>Chat</span><span class="header-subtitle" data-tauri-drag-region>ContextKey</span></span>
       </span>
-      <button class="btn-quiet" id="new-chat-btn" title="Start a new conversation">New chat</button>
+      <button class="btn-quiet" id="new-chat-btn" title="Start a new conversation"><svg class="ic" aria-hidden="true"><use href="#ic-plus"/></svg>New chat</button>
       <button class="close-btn" id="close-btn" title="Close (Esc)" aria-label="Close">
         <svg class="ic" aria-hidden="true"><use href="#ic-close"/></svg>
       </button>
@@ -24,6 +24,7 @@
 
     <!-- Context strip (hidden in free-chat mode) -->
     <div class="context-strip" id="context-strip">
+      <svg class="ic context-icon" aria-hidden="true"><use href="#ic-text"/></svg>
       <details class="context-details">
         <summary class="context-text" id="context-text"></summary>
         <div class="context-full" id="context-full"></div>
@@ -44,6 +45,12 @@
     <div class="conversation-area">
       <div class="transcript" id="transcript" role="log" aria-label="Conversation" aria-live="polite" tabindex="0">
         <div class="empty-state" id="empty-state">
+          <div class="empty-illustration" aria-hidden="true">
+            <span class="orbit-icon orbit-text"><svg class="ic"><use href="#ic-languages"/></svg></span>
+            <span class="empty-mark"><svg class="ic"><use href="#ic-sparkles"/></svg></span>
+            <span class="orbit-icon orbit-chat"><svg class="ic"><use href="#ic-chat"/></svg></span>
+          </div>
+          <span class="empty-eyebrow">A little clarity, on demand</span>
           <p class="empty-title" id="empty-title">Start a conversation</p>
           <p id="empty-description">Type a question below. Shift+Enter adds a new line.</p>
         </div>
@@ -55,19 +62,21 @@
     <p class="chat-status" id="chat-status" role="status"></p>
 
     <!-- Input bar pinned to bottom -->
-    <div class="input-bar">
-      <textarea
-        class="chat-input"
-        id="chat-input"
-        rows="1"
-        placeholder="Ask a question…"
-        autocomplete="off"
-        spellcheck="false"
-        aria-label="Message"
-        aria-describedby="input-help"
-      ></textarea>
-      <span class="sr-only" id="input-help">Enter to send. Shift+Enter for a new line.</span>
-      <button class="btn-send" id="send-btn" disabled>Send</button>
+    <div class="composer">
+      <div class="input-bar">
+        <textarea
+          class="chat-input"
+          id="chat-input"
+          rows="1"
+          placeholder="What would you like to understand?"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Message"
+          aria-describedby="input-help"
+        ></textarea>
+        <button class="btn-send" id="send-btn" title="Send message (Enter)" disabled><span>Send</span><svg class="ic" aria-hidden="true"><use href="#ic-arrow-up"/></svg></button>
+      </div>
+      <p class="composer-hint" id="input-help"><span><kbd>Enter</kbd> to send</span><span><kbd>Shift + Enter</kbd> for a new line</span></p>
     </div>
   </div>
 

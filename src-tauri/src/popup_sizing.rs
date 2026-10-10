@@ -9,19 +9,22 @@
 //! All values are LOGICAL pixels. The caller converts to physical using the
 //! cursor monitor's scale factor at the last possible moment.
 
-/// Header + original line + separator + footer + window border, in logical px.
+/// Header + source card + footer + result padding + window border, in logical px.
 /// Approximation of the fixed chrome in `popup.css`; only used for the estimate.
-pub const CHROME_H: f64 = 110.0;
+pub const CHROME_H: f64 = 220.0;
+/// The compact layout in popup.css keeps short translations small.
+const COMPACT_CHROME_H: f64 = 138.0;
+const COMPACT_MAX_H: f64 = 240.0;
 
-/// Rendered line height of `.translation-text` (13px font × 1.6 line-height).
-pub const LINE_H: f64 = 20.8;
+/// Rendered line height of `.translation-text` (14px font × 1.75 line-height).
+pub const LINE_H: f64 = 24.5;
 
-/// Usable content width: DEFAULT_W minus the result-area's 16px side padding ×2.
-pub const CONTENT_W: f64 = 428.0;
+/// Usable content width: DEFAULT_W minus the result-area's 20px side padding ×2.
+pub const CONTENT_W: f64 = 420.0;
 
-/// Average advance width of one character at 13px in the system font. Chosen a
+/// Average advance width of one character at 14px in the system font. Chosen a
 /// touch wide on purpose so the estimate errs tall rather than short.
-pub const AVG_CHAR_W: f64 = 7.2;
+pub const AVG_CHAR_W: f64 = 7.6;
 
 /// Worst-case source→translation length expansion (e.g. English → German/Vietnamese).
 pub const EXPANSION: f64 = 1.40;
@@ -62,7 +65,13 @@ pub fn cap_height(h: f64, monitor_logical_h: f64) -> f64 {
 /// the monitor under the cursor.
 pub fn estimate_popup_height(original: &str, monitor_logical_h: f64) -> f64 {
     let text_h = estimate_text_height(chars_for_estimate(original));
-    cap_height(CHROME_H + text_h, monitor_logical_h)
+    let compact_h = COMPACT_CHROME_H + text_h;
+    let height = if compact_h <= COMPACT_MAX_H {
+        compact_h
+    } else {
+        CHROME_H + text_h
+    };
+    cap_height(height, monitor_logical_h)
 }
 
 #[cfg(test)]
@@ -70,8 +79,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn short_text_hits_min() {
-        assert_eq!(estimate_popup_height("hi", 1080.0), MIN_H);
+    fn short_text_stays_compact() {
+        let height = estimate_popup_height("hi", 1080.0);
+        assert!((MIN_H..=200.0).contains(&height));
     }
 
     #[test]

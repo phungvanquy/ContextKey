@@ -474,7 +474,8 @@ pub fn show_settings_window(app: &AppHandle) -> Result<(), String> {
 
     WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
         .title("ContextKey — Settings")
-        .inner_size(520.0, 520.0)
+        .inner_size(600.0, 680.0)
+        .min_inner_size(360.0, 420.0)
         .decorations(true)
         .always_on_top(false)
         .resizable(true)

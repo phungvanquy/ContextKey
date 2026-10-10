@@ -47,7 +47,9 @@ async function closePopup() {
 
 function updateControls() {
   sendBtn.disabled = !ready || streaming || !chatInput.value.trim();
-  sendBtn.textContent = streaming ? 'Replying…' : 'Send';
+  sendBtn.querySelector('span').textContent = streaming ? 'Replying…' : 'Send';
+  sendBtn.querySelector('use').setAttribute('href', streaming ? '#ic-spinner' : '#ic-arrow-up');
+  sendBtn.querySelector('svg').classList.toggle('ic-spin', streaming);
   newChatBtn.disabled = streaming;
   contextClear.disabled = streaming;
   byId('use-selection-btn').disabled = streaming;
@@ -71,7 +73,9 @@ function updateContext() {
   byId('empty-title').textContent = pendingImages.length ? 'Ask about your screenshot' : selectedText.trim() ? 'Ask about this selection' : 'Start a conversation';
   byId('empty-description').textContent = pendingImages.length
     ? 'Preview or remove a screenshot below, then type a question to send it.'
-    : 'Type a question below. Shift+Enter adds a new line.';
+    : selectedText.trim()
+      ? 'Find the main idea, explore a detail, or see it from a new perspective.'
+      : 'Untangle an idea, find the right words, or follow your curiosity.';
 }
 
 function updateJumpButton() {

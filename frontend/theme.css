@@ -1,51 +1,57 @@
-/* theme.css — Indigo brand design system (dark + light, follows OS preference).
+/* theme.css — Shared ContextKey design system (follows OS preference).
    All colors are tokens; components must read var(--…), never a literal hex.
    Dark is the default; the light block below overrides the same token names. */
 :root {
+  color-scheme: dark;
   /* Surfaces / elevation */
-  --bg:        #0E0E14;
-  --surface:   #17171F;
-  --surface1:  #1F1F2B;
-  --surface2:  #2A2A38;
-  --mantle:    #0A0A0F;
-  --border:    #262633;
-  --scrollbar: #2A2A38;
+  --bg:        #11121B;
+  --surface:   #1A1B27;
+  --surface1:  #222431;
+  --surface2:  #2D2F40;
+  --mantle:    #14151F;
+  --border:    #303243;
+  --scrollbar: #3A3C50;
 
   /* Text */
-  --text:      #E8E8F0;
-  --subtext:   #9B9BA8;
-  --muted:     #9696A6;
+  --text:      #EEEFF7;
+  --subtext:   #B1B3C5;
+  --muted:     #9C9EB3;
 
   /* Indigo brand accent */
-  --accent:       #7C6BFF;
-  --accent-hover: #8E7EFF;
-  --accent-2:     #A78BFA;
-  --accent-soft:  rgba(124, 107, 255, 0.16);
+  --accent:       #AD9FFF;
+  --accent-hover: #C2B7FF;
+  --accent-2:     #B7AAFF;
+  --accent-soft:  rgba(157, 137, 255, 0.12);
+  --accent-border: rgba(157, 137, 255, 0.24);
 
   /* Status */
-  --success: #3FB950;
-  --danger:  #F85149;
-  --warn:    #D29922;
+  --success: #72D9AC;
+  --danger:  #FF929D;
+  --danger-soft: rgba(255, 146, 157, 0.12);
+  --warn:    #E5BD70;
 
   /* Inputs */
-  --input-bg:     #0E0E14;
-  --input-border: #2A2A38;
+  --input-bg:     #14151F;
+  --input-border: #383A4E;
 
   /* Primary button (indigo) */
-  --btn-primary-bg:    #6653DC;
+  --btn-primary-bg:    #7058DE;
   --btn-primary-fg:    #ffffff;
-  --btn-primary-hover: #715DE8;
+  --btn-primary-hover: #7A62E5;
 
   /* Secondary button */
-  --btn-secondary-bg:    #1F1F2B;
-  --btn-secondary-fg:    #C9C9D4;
-  --btn-secondary-hover: #2A2A38;
+  --btn-secondary-bg:    #222431;
+  --btn-secondary-fg:    #D6D7E5;
+  --btn-secondary-hover: #2D2F40;
 
   /* Shape & depth */
-  --radius-window: 10px;
-  --radius-card:   8px;
-  --radius-input:  6px;
-  --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --radius-window: 16px;
+  --radius-card:   14px;
+  --radius-input:  9px;
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.16);
+  --shadow-card: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --shadow-button: 0 2px 5px rgba(25, 14, 71, 0.2);
+  --brand-gradient: linear-gradient(145deg, #9681F8, #6950D3);
   --backdrop: rgba(0, 0, 0, 0.6);
 
   --font-family: 'Segoe UI', 'SF Pro Text', 'Inter', system-ui, 'Noto Sans', sans-serif;
@@ -54,38 +60,43 @@
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg:        #FAFAFC;
+    color-scheme: light;
+    --bg:        #F5F6FA;
     --surface:   #FFFFFF;
-    --surface1:  #F1F1F5;
-    --surface2:  #E4E4EC;
-    --mantle:    #F1F1F5;
-    --border:    #E2E2EA;
-    --scrollbar: #C8C8D2;
+    --surface1:  #EFF0F6;
+    --surface2:  #E7E8F1;
+    --mantle:    #F5F6FA;
+    --border:    #E3E5EE;
+    --scrollbar: #C9CCDC;
 
-    --text:      #1A1A24;
-    --subtext:   #6B6B78;
-    --muted:     #696977;
+    --text:      #252638;
+    --subtext:   #626579;
+    --muted:     #6D7084;
 
-    --accent:       #6D5AE6;
-    --accent-hover: #5B47D9;
-    --accent-2:     #7254CD;
-    --accent-soft:  rgba(109, 90, 230, 0.12);
+    --accent:       #6952D5;
+    --accent-hover: #5840C1;
+    --accent-2:     #6952D5;
+    --accent-soft:  rgba(105, 82, 213, 0.07);
+    --accent-border: rgba(105, 82, 213, 0.19);
 
     --success: #1B7637;
     --danger:  #BC2933;
+    --danger-soft: rgba(188, 41, 51, 0.08);
     --warn:    #876000;
 
     --btn-primary-bg: var(--accent);
     --btn-primary-hover: var(--accent-hover);
 
-    --input-bg:     #FFFFFF;
-    --input-border: #D5D5DE;
+    --input-bg:     #FAFBFD;
+    --input-border: #DCDDE8;
 
-    --btn-secondary-bg:    #F1F1F5;
-    --btn-secondary-fg:    #3A3A46;
-    --btn-secondary-hover: #E4E4EC;
+    --btn-secondary-bg:    #FFFFFF;
+    --btn-secondary-fg:    #515469;
+    --btn-secondary-hover: #EFF0F6;
 
-    --shadow: 0 8px 28px rgba(20, 20, 40, 0.12);
+    --shadow: 0 16px 48px rgba(36, 29, 75, 0.1), 0 2px 8px rgba(36, 29, 75, 0.04);
+    --shadow-card: 0 2px 6px rgba(36, 29, 75, 0.025);
+    --shadow-button: 0 2px 5px rgba(76, 50, 158, 0.12);
   }
 }
 
@@ -101,10 +112,11 @@ body {
   font-family: var(--font-family);
   font-size: 13px;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
 
-button:focus-visible, summary:focus-visible, [tabindex="0"]:focus-visible {
+button:focus-visible, a:focus-visible, summary:focus-visible, [tabindex="0"]:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -115,6 +127,50 @@ button:disabled {
 }
 
 [hidden] { display: none !important; }
+
+button, input, textarea, select { font: inherit; }
+
+::selection { background: var(--accent-border); color: var(--text); }
+
+kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--subtext);
+  font: 10px var(--font-family);
+  line-height: 1.5;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  color: var(--btn-primary-fg);
+  background: var(--brand-gradient);
+  border-radius: 13px;
+  box-shadow: var(--shadow-button);
+}
+
+.brand-mark .ic { width: 24px; height: 24px; }
+
+.window-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  pointer-events: none;
+}
 
 .sr-only {
   position: absolute;

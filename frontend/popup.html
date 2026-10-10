@@ -11,6 +11,7 @@
   <script src="icons.js"></script>
   <!-- Header: drag region + language label + close button -->
   <div class="header" data-tauri-drag-region>
+    <span class="popup-title" data-tauri-drag-region><span class="window-mark" aria-hidden="true"><svg class="ic"><use href="#ic-languages"/></svg></span><span data-tauri-drag-region>Translation</span></span>
     <span class="lang-label" id="lang-label" data-tauri-drag-region>
       <svg class="ic ic-arrow" aria-hidden="true"><use href="#ic-arrow-right"/></svg>
       <span id="lang-name" data-tauri-drag-region>Vietnamese</span>
@@ -21,7 +22,10 @@
   </div>
 
   <!-- Original text (muted, truncated) -->
-  <div class="original" id="original-text"></div>
+  <div class="source-strip">
+    <span class="source-label"><svg class="ic" aria-hidden="true"><use href="#ic-text"/></svg>Original</span>
+    <div class="original" id="original-text"></div>
+  </div>
 
   <!-- Separator -->
   <div class="separator"></div>
@@ -54,7 +58,7 @@
     <button class="speak-btn" id="speak-btn" title="Read aloud" aria-label="Read aloud">
       <svg class="ic" aria-hidden="true"><use href="#ic-volume"/></svg>
     </button>
-    <span class="hint">Esc to close</span>
+    <span class="hint"><kbd>Esc</kbd> to close</span>
     <button class="copy-btn" id="copy-btn" title="Copy translation" disabled>
       <svg class="ic" aria-hidden="true"><use href="#ic-copy"/></svg>
       <span class="copy-label">Copy</span>

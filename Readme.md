@@ -28,7 +28,7 @@ Windows is the current desktop target. The global keyboard hook is implemented w
 1. Open [Releases](https://github.com/phungvanquy/ContextKey/releases) and download the Windows installer attached to a release.
 2. Install and launch the app. ContextKey runs in the system tray; Settings opens automatically when no API key is configured.
 3. Enter your **API Key**, **Base URL**, and **Model**. Choose a **Target Language** for translation.
-4. Select **Test connection**, then **Save**. You can reopen Settings from the tray menu at any time.
+4. Select **Test connection**, then **Save changes**. You can reopen Settings from the tray menu at any time.
 5. Select text in another application and try a shortcut below.
 
 The installer can download the WebView2 runtime when needed; that installation step requires an internet connection. See [Tauri's WebView2 installation documentation](https://v2.tauri.app/distribute/windows-installer/#downloaded-bootstrapper).
@@ -43,7 +43,7 @@ Earlier releases may still use the **Quick Translator** name. See [upgrading](#u
 | Chat | `Ctrl+C` → `Space` | Select text, press Ctrl+C, then press Space within 600 ms while continuing to hold Ctrl. |
 | Screenshot | `Right Ctrl` → `Right Ctrl` | Press and release Right Ctrl twice within 400 ms, then drag to select a screen region. |
 
-These are two-step sequences. Change the bindings in **Settings → Hotkeys** and select **Save** to apply them immediately. Shortcut keystrokes also reach the foreground application, so choose bindings that work well with your other tools. With a modifier-only prefix, copy the text before invoking translation or chat.
+These are two-step sequences. Change the bindings in **Settings → Shortcuts** and select **Save changes** to apply them immediately. Shortcut keystrokes also reach the foreground application, so choose bindings that work well with your other tools. With a modifier-only prefix, copy the text before invoking translation or chat.
 
 ## Using ContextKey
 
@@ -80,12 +80,14 @@ Open **Settings** from the system tray.
 | Model | Model used for translation and text chat. | `gpt-4o-mini` |
 | Vision Model | Optional model used when a conversation contains images. | Empty; uses the main model. |
 | Target Language | Language used by the translation prompt. | `Vietnamese` |
-| Custom Prompt | Instructions for translation; `{target_language}` is replaced with the configured language. | Translation-only instructions. |
+| Translation instructions | Instructions for translation; `{target_language}` is replaced with the configured language. | Translation-only instructions. |
 | Hotkeys | Keyboard sequences for translation, chat, and screenshots. | See [Keyboard shortcuts](#keyboard-shortcuts). |
 
 Choose model identifiers supported by your endpoint. Screenshot questions require an image-capable model. Compatibility depends on the endpoint's support for streaming Chat Completions requests and the configured model.
 
-**Test connection** uses the values currently entered in the form, including a separate vision model when provided. It sends a text-only probe, so a successful test does not by itself confirm image support. Select **Save** to apply settings without restarting.
+Settings is grouped into **Connection**, **Translation**, and **Shortcuts**. Use the section links to jump between them; the save and test actions stay visible while you scroll.
+
+**Test connection** uses the values currently entered in the form, including a separate vision model when provided. It sends a text-only probe, so a successful test does not by itself confirm image support. Select **Save changes** to apply settings without restarting.
 
 The app requires a non-empty API Key even for a local endpoint. If your local server ignores authentication, a placeholder value can satisfy this field; otherwise use the credential required by that server.
 
