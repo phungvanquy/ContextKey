@@ -1,6 +1,7 @@
 name: Build Microsoft Store MSIX
 
 on:
+  workflow_call:
   workflow_dispatch:
   push:
     branches: [main, master]

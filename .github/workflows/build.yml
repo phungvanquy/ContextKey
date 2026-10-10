@@ -6,15 +6,13 @@ on:
     tags: [ 'v*' ]
   workflow_dispatch:
 
-# Deduplicate: if a tag push arrives for the same SHA as a running branch push,
-# cancel the branch run (the tag run produces the release and is the one we want).
+# Keep branch and tag runs independent so a branch push cannot cancel publication.
 concurrency:
-  group: build-${{ github.sha }}
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
-# Needed so tauri-action can create the GitHub Release when a tag is pushed.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -41,35 +39,67 @@ jobs:
         working-directory: src-tauri
         run: cargo test --bins
 
-      # On a tag push (v*), tauri-action builds AND publishes a GitHub
-      # Release with the installer attached. On a branch push it only builds
-      # (empty tagName → no release), and the artifacts are uploaded below.
+      # Publication waits for both the EXE and MSIX jobs below.
       - name: Build Tauri app (release)
         uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: src-tauri
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: ${{ github.ref_type == 'tag' && format('ContextKey {0}', github.ref_name) || '' }}
-          releaseDraft: false
-          prerelease: false
 
-      # Only upload Actions artifacts on branch/dispatch builds. On a tag push
-      # the installer is already attached to the GitHub Release above, so
-      # skipping these avoids duplicating the same build in two places.
       - name: Upload EXE artifact
-        if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v7
         with:
           name: ContextKey-Windows
           path: src-tauri/target/release/contextkey.exe
+          if-no-files-found: error
           retention-days: 30
 
       - name: Upload NSIS installer artifact
-        if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v7
         with:
           name: ContextKey-Setup
           path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
           retention-days: 30
+
+  msix:
+    if: github.ref_type == 'tag'
+    uses: ./.github/workflows/microsoft-store.yml
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [build, msix]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v7
+
+      - name: Download tested release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ContextKey-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify release versions and checksums
+        run: python3 packaging/windows/verify_release.py
+
+      - name: Publish complete GitHub release
+        shell: bash
+        run: |
+          if existing_draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [[ "$existing_draft" != "true" ]]; then
+              echo "Refusing to replace assets of an already published release."
+              exit 1
+            fi
+            gh release edit "$RELEASE_TAG" --title "ContextKey $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+          else
+            gh release create "$RELEASE_TAG" --draft --verify-tag --title "ContextKey $RELEASE_TAG" --notes-file "docs/releases/$RELEASE_TAG.md"
+          fi
+          # Only unpublished draft assets may be replaced when retrying a failed upload.
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest

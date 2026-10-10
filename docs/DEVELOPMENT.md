@@ -130,11 +130,11 @@ The [build workflow](../.github/workflows/build.yml) runs Rust unit tests and bu
 | Trigger | Result |
 | --- | --- |
 | Push to `main` or `master`, or manual dispatch on a branch | Builds the app and uploads `ContextKey-Windows` and `ContextKey-Setup` artifacts with 30-day retention. |
-| Push a `v*` tag | Builds the app and publishes a non-draft GitHub release titled `ContextKey <tag>` with the installer attached. |
+| Push a `v*` tag | Builds the EXE and calls the reusable MSIX workflow, then publishes `ContextKey <tag>` after both pass. The release includes the installer, standalone EXE, MSIX, build metadata, and checksums. |
 
-Before pushing a release tag, synchronize the versions in `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, and review the Windows branch-build result and manual QA record. Pushing the tag starts the publishing workflow.
+Before pushing a release tag, synchronize the versions in `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, add `docs/releases/<tag>.md`, and review the Windows branch-build result and manual QA record. Pushing the tag starts the publishing workflow. The publishing job checks the tag, versions, MSIX source commit, expected files, and checksums. It uploads to a draft before publication and refuses to overwrite an already published release.
 
-For Microsoft Store distribution, the separate [MSIX workflow](../.github/workflows/microsoft-store.yml) builds an unsigned upload candidate using the owner's Partner Center identity and a bundled Fixed Version WebView2 runtime. It uploads an Actions artifact; it does not publish a release or submit to Partner Center. See the [Store packaging guide](MICROSOFT-STORE.md) for versioning, local builds, runtime updates, and the remaining Windows/listing checks. Microsoft signs Store packages after certification.
+For Microsoft Store distribution, the [MSIX workflow](../.github/workflows/microsoft-store.yml) builds an unsigned upload candidate using the owner's Partner Center identity and a bundled Fixed Version WebView2 runtime. Branch and manual runs upload an Actions artifact; tag releases call the same workflow and attach its output to the GitHub release. Neither submits to Partner Center. See the [Store packaging guide](MICROSOFT-STORE.md) for versioning, local builds, runtime updates, and the remaining Windows/listing checks. Microsoft signs Store packages after certification.
 
 ## App icon maintenance
 

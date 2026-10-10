@@ -21,11 +21,11 @@ These are public identifiers, not credentials. They can be committed to the repo
 
 The family name and SID are derived identifiers, not extra manifest attributes. The Store ID identifies the reserved listing; it is not needed to assemble the MSIX. None of these values grants CI permission to submit or publish an app.
 
-The initial **Store package version is `1.0.0.0`**, maintained in the MSIX manifest. This is a separate version from the existing Cargo/Tauri app version (`0.4.0`). Store versions require a nonzero major component and a final component of zero. Increase the Store version for subsequent submitted updates, for example `1.0.1.0`; do not automatically reuse it for different published packages. Normal GitHub releases still require synchronized Cargo/Tauri versions and a new tag. [Store version numbering](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements#package-version-numbering)
+The initial **Store package version is `1.0.0.0`**, maintained in the MSIX manifest. This is a separate version from the Cargo/Tauri app version (`0.5.0`). Store versions require a nonzero major component and a final component of zero. Increase the Store version for subsequent submitted updates, for example `1.0.1.0`; do not automatically reuse it for different published packages. Normal GitHub releases still require synchronized Cargo/Tauri versions and a new tag. [Store version numbering](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements#package-version-numbering)
 
 ## CI flow
 
-[`Build Microsoft Store MSIX`](../.github/workflows/microsoft-store.yml) runs on relevant pushes to `main`/`master`, pull requests, and manual dispatch. It uses a Windows runner and needs no signing or Partner Center secrets.
+[`Build Microsoft Store MSIX`](../.github/workflows/microsoft-store.yml) runs on relevant pushes to `main`/`master`, pull requests, and manual dispatch. Tagged releases also call it as a reusable workflow. It uses a Windows runner and needs no signing or Partner Center secrets.
 
 1. Validate packaging inputs and run Rust unit tests.
 2. Download the pinned x64 WebView2 runtime and check its SHA-256 before extraction.
@@ -34,7 +34,7 @@ The initial **Store package version is `1.0.0.0`**, maintained in the MSIX manif
 5. Run the Windows SDK's `MakeAppx.exe` with semantic validation enabled and SHA-256 block hashes.
 6. Upload `ContextKey-MicrosoftStore-x64` as an Actions artifact containing the unsigned `.msix`, its `.sha256`, and `build-info.json` with the source commit and runtime pin.
 
-Download and extract that artifact; upload the **`.msix` inside it** to the existing submission's Packages page. The artifact ZIP itself is not the submission package. This workflow does not call Partner Center or create a GitHub release. The existing [EXE release workflow](../.github/workflows/build.yml) remains separate.
+Download and extract that artifact; upload the **`.msix` inside it** to the existing submission's Packages page. The artifact ZIP itself is not the submission package. On a release tag, the [release workflow](../.github/workflows/build.yml) waits for both Windows build jobs, checks versions and checksums, and attaches the MSIX alongside the EXE files to the GitHub release. You can download that `.msix` directly instead. Neither workflow calls Partner Center, and a GitHub release does not imply Store certification.
 
 The candidate targets x64 Windows 10 build 19041 and later, including Windows 11. It declares the desktop `runFullTrust` capability for the native tray app, keyboard shortcuts, clipboard access, screenshot capture, and speech. This is medium-integrity desktop execution, not an administrator requirement. Explain this use when Partner Center asks about restricted capabilities. [Desktop package manifest guidance](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-manual-conversion)
 
