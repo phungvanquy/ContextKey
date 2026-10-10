@@ -1,0 +1,82 @@
+name: Build Microsoft Store MSIX
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'frontend/**'
+      - 'src-tauri/**'
+      - 'packaging/windows/**'
+      - '.github/workflows/microsoft-store.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'src-tauri/**'
+      - 'packaging/windows/**'
+      - '.github/workflows/microsoft-store.yml'
+
+# This workflow builds an upload candidate. Partner Center handles publication.
+permissions:
+  contents: read
+
+concurrency:
+  group: microsoft-store-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  msix:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      # Avoid requiring a separate Visual C++ redistributable installation.
+      RUSTFLAGS: -C target-feature=+crt-static
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Check package inputs and staging
+        run: python -m unittest discover -s packaging/windows -p "test_*.py" -v
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: microsoft-store
+
+      - name: Run Rust unit tests
+        working-directory: src-tauri
+        run: cargo test --bins
+
+      - name: Download and verify bundled WebView2
+        run: python packaging/windows/build_msix.py runtime
+
+      - name: Build ContextKey with the Store runtime configuration
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: src-tauri
+          args: --no-bundle --config tauri.microsoftstore.conf.json
+          uploadPlainBinary: true
+
+      - name: Package and validate MSIX
+        run: python packaging/windows/build_msix.py package
+
+      - name: Upload Partner Center package
+        uses: actions/upload-artifact@v7
+        with:
+          name: ContextKey-MicrosoftStore-x64
+          path: src-tauri/target/msix/output/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

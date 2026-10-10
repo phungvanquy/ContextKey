@@ -104,6 +104,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg);
 .btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-fg); border-color: var(--border); }
 .btn-secondary:hover:not(:disabled) { background: var(--btn-secondary-hover); }
 
+@media (max-width: 520px) {
+  .nav-item { font-size: 11px; padding-left: 4px; padding-right: 4px; }
+  .nav-item .ic { display: none; }
+}
+
 @media (max-width: 460px) {
   .settings-header { padding: 18px 16px 16px; }
   .settings-nav { margin-left: 16px; margin-right: 16px; }

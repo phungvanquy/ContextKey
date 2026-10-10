@@ -11,12 +11,15 @@ v0.4.0 shipped translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS read-aloud, config
 
 - [README](Readme.md): installation, shortcuts, settings, storage, upgrades, and troubleshooting.
 - [Development guide](docs/DEVELOPMENT.md): prerequisites, architecture, local commands, CI, and icon maintenance.
+- [Microsoft Store preparation](docs/MICROSOFT-STORE.md): MSIX CI, the supplied Partner Center identity, bundled WebView2 maintenance, and remaining Windows/listing validation. CI produces unsigned upload candidates; publication and certification happen in Partner Center.
 - [Release validation](openspec/QA-CHECKLIST.md): manual Windows checks and historical results.
 - [Behavior specifications](openspec/specs/): current feature requirements; archived changes preserve implementation history.
 
 ## Architecture
 
 **Stack:** Rust + Tauri 2.x + tokio backend; plain static HTML/CSS/JS frontend (no JS build step); CI on `windows-latest` → `cargo tauri build` → NSIS installer.
+
+**Store packaging:** `.github/workflows/microsoft-store.yml` separately builds an unsigned x64 MSIX for `ITMO.ContextKey`, publisher `CN=B4AAB21C-9EB8-42AA-87B3-8F966E39D731`, display publisher `ITMOvnteam` (Store ID `9PM8R305QRTK`). `packaging/windows/AppxManifest.xml` owns Store version `1.0.0.0`, independent of Cargo/Tauri versions. The Store profile uses Fixed Version WebView2 at `WebView2Runtime`; `webview2.json` pins its Microsoft download and SHA-256. Update the runtime with releases because it does not update itself. The standard EXE profile remains separate. MakeAppx validation is enabled; native packaged-app testing and certification are still required. CI builds an artifact only; Microsoft signs after Store certification.
 
 ### Backend (`src-tauri/src/`)
 | Module | Responsibility |
@@ -43,7 +46,7 @@ v0.4.0 shipped translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS read-aloud, config
 | `toast.*` | Transient cursor-anchored notice; message via query string, self-closes after 2s, never takes focus |
 | `markdown.js` | Minimal XSS-safe markdown→HTML for chat |
 | `overlay.*` | Fullscreen region-select overlay: frozen screenshot on a canvas, drag to select, Esc/right-click cancels |
-| `settings.*` | Section navigation for Connection, Translation, and Shortcuts; API key reveal; persistent save/test actions |
+| `settings.*` | Section navigation for Connection, Translation, Shortcuts, and Appearance; saved theme selector; API key reveal; persistent save/test actions |
 
 ### Key design decisions
 
@@ -85,8 +88,8 @@ v0.4.0 shipped translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS read-aloud, config
 - Tray icon is owned by code (`TrayIconBuilder`); `tauri.conf.json` must NOT declare `app.trayIcon` or two icons appear.
 
 **Theme / assets**
-- Indigo accent (`#AD9FFF` dark / `#6952D5` light); dark+light comes purely from `@media (prefers-color-scheme)` in `theme.css` — one token set, no toggle, no JS. No literal hex outside `theme.css` except `#ffffff` on colored buttons.
-- Settings opens at 600×680 with a 360×420 minimum. Its three section links scroll one continuous form so validation can focus any field. Translation switches to compact chrome at 240px height; keep the initial size estimates in `popup_sizing.rs` aligned with `popup.css`.
+- Indigo accent (`#AD9FFF` dark / `#6952D5` light); the saved `theme` preference is `system` (default for older configs), `light`, or `dark`. Settings → Appearance applies it on Save. `main.rs` calls `app.set_theme` before creating windows and after successful config updates; Windows propagates it to native title bars and WebView2's `prefers-color-scheme`, so every surface keeps using the same CSS tokens. Leave individual window themes unset so they inherit the app preference. No literal hex outside `theme.css` except `#ffffff` on colored buttons.
+- Settings opens at 600×680 with a 360×420 minimum. Its four section links scroll one continuous form so validation can focus any field. Translation switches to compact chrome at 240px height; keep the initial size estimates in `popup_sizing.rs` aligned with `popup.css`.
 - Functional glyphs use the inline-SVG `<symbol>` sprite (`icons.js`) with `currentColor`. Brand marks use the supplied artwork in `frontend/brand.png`, not a placeholder glyph.
 - Translation, chat, and toast use `.transparent(true).shadow(false)`: native shadows add an unwanted white border on undecorated Windows windows. `window.css` keeps both html and body transparent and paints `.floating-window` inside an 8px gutter for the CSS shadow. Never put the translation background directly on body; Chromium propagates it to the canvas, creating opaque square corners. Browser pixel tests cover corners/edges in both themes; native Windows drag, resize, and DPI behavior still need desktop verification. Settings stays decorated.
 - App assets come from `icons/generate_icon.py` and the supplied `icons/brand.png` logo (1254×1254 original; current share URL is recorded in the generator). It preserves the artwork and produces a 512×512 RGBA PNG, Windows ICO sizes from 16×16 to 256×256, and `frontend/brand.png` at 128×128. Tray uses `default_window_icon()`; the same assets brand the executable, installer, README, and UI.

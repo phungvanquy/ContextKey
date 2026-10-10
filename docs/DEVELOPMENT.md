@@ -56,7 +56,9 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-Tests run in light and dark themes and cover chat retry, attachment retention and eviction, context resets, scrolling, keyboard navigation, settings validation, and rendered popup edge transparency at normal/minimum sizes. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium executable. Native Windows window reuse, focus, shortcuts, capture, and monitor scaling still require desktop validation.
+Tests run in light and dark themes and cover chat retry, attachment retention and eviction, context resets, scrolling, keyboard navigation, settings validation, theme selection/save/reload, and rendered popup edge transparency at normal/minimum sizes. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium executable. Native Windows theme propagation, window reuse, focus, shortcuts, capture, and monitor scaling still require desktop validation.
+
+The saved `theme` preference uses Tauri's [app-wide `set_theme`](https://docs.rs/tauri/latest/tauri/struct.AppHandle.html#method.set_theme) at startup and after saving. On Windows, this updates native windows and WebView2's color preference; `theme.css` continues to use `prefers-color-scheme`. Keep window-specific theme overrides unset so new and existing windows inherit the app preference. The browser suite mocks config persistence; it does not exercise the native theme API.
 
 Build the Windows executable and NSIS installer:
 
@@ -132,6 +134,8 @@ The [build workflow](../.github/workflows/build.yml) runs Rust unit tests and bu
 
 Before pushing a release tag, synchronize the versions in `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, and review the Windows branch-build result and manual QA record. Pushing the tag starts the publishing workflow.
 
+For Microsoft Store distribution, the separate [MSIX workflow](../.github/workflows/microsoft-store.yml) builds an unsigned upload candidate using the owner's Partner Center identity and a bundled Fixed Version WebView2 runtime. It uploads an Actions artifact; it does not publish a release or submit to Partner Center. See the [Store packaging guide](MICROSOFT-STORE.md) for versioning, local builds, runtime updates, and the remaining Windows/listing checks. Microsoft signs Store packages after certification.
+
 ## App icon maintenance
 
 The original supplied artwork is [`brand.png`](../src-tauri/icons/brand.png), a 1254×1254 image from the [current logo share](https://chatgpt.com/s/m_6ac9ab048d608191b153a164b7fffd0c). The committed generator produces:
@@ -141,6 +145,7 @@ The original supplied artwork is [`brand.png`](../src-tauri/icons/brand.png), a 
 | `icon.png` | 512×512 RGBA PNG. |
 | `icon.ico` | Windows ICO containing 16, 20, 24, 32, 40, 48, 64, 96, 128, and 256-pixel square images. |
 | `frontend/brand.png` | 128×128 RGBA PNG for settings, popup headers, the chat welcome screen, notifications, and favicons. |
+| `packaging/windows/Assets/*.png` | 50×50 Store logo and 44×44 / 150×150 application tiles for the MSIX manifest. |
 
 To regenerate the icons, use a Python environment with Pillow:
 

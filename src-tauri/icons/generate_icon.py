@@ -15,6 +15,7 @@ from PIL import Image, ImageOps
 
 ICON_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = ICON_DIR.parent.parent / "frontend"
+STORE_ASSET_DIR = ICON_DIR.parent.parent / "packaging" / "windows" / "Assets"
 PNG_SIZE = (512, 512)
 FRONTEND_SIZE = (128, 128)
 ICO_SIZES = [(size, size) for size in (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)]
@@ -40,7 +41,13 @@ def main():
     icon.resize(FRONTEND_SIZE, Image.Resampling.LANCZOS).save(
         FRONTEND_DIR / "brand.png", optimize=True
     )
+    STORE_ASSET_DIR.mkdir(parents=True, exist_ok=True)
+    for name, size in (("StoreLogo", 50), ("Square44x44Logo", 44), ("Square150x150Logo", 150)):
+        icon.resize((size, size), Image.Resampling.LANCZOS).save(
+            STORE_ASSET_DIR / f"{name}.png", optimize=True
+        )
     print(f"wrote icon.png {PNG_SIZE}, icon.ico {ICO_SIZES}, and frontend/brand.png {FRONTEND_SIZE}")
+    print(f"wrote Microsoft Store logos in {STORE_ASSET_DIR}")
 
 
 if __name__ == "__main__":

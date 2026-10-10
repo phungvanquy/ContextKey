@@ -19,7 +19,7 @@ ContextKey brings translation and AI assistance to your Windows desktop. Select 
 | Screenshot questions | Capture a region on any monitor, review the preview, and ask a vision-capable model about it. |
 | Configurable shortcuts | Customize the keyboard sequences for translation, chat, and screen capture. |
 | Provider settings | Use a compatible API endpoint, choose your models, and customize the translation prompt. |
-| Desktop integration | Keep the app in the system tray and use a light or dark theme that follows Windows settings. |
+| Desktop integration | Keep the app in the system tray and choose a light, dark, or system theme. |
 
 Windows is the current desktop target. The global keyboard hook is implemented with Windows APIs; macOS and Linux desktop support is not implemented.
 
@@ -82,10 +82,13 @@ Open **Settings** from the system tray.
 | Target Language | Language used by the translation prompt. | `Vietnamese` |
 | Translation instructions | Instructions for translation; `{target_language}` is replaced with the configured language. | Translation-only instructions. |
 | Hotkeys | Keyboard sequences for translation, chat, and screenshots. | See [Keyboard shortcuts](#keyboard-shortcuts). |
+| Theme | Follow Windows or choose a light or dark appearance for ContextKey. | `System` |
 
 Choose model identifiers supported by your endpoint. Screenshot questions require an image-capable model. Compatibility depends on the endpoint's support for streaming Chat Completions requests and the configured model.
 
-Settings is grouped into **Connection**, **Translation**, and **Shortcuts**. Use the section links to jump between them; the save and test actions stay visible while you scroll.
+Settings is grouped into **Connection**, **Translation**, **Shortcuts**, and **Appearance**. Use the section links to jump between them; the save and test actions stay visible while you scroll.
+
+To switch themes, open **Appearance → Theme**, choose **System**, **Light**, or **Dark**, and select **Save changes**. The choice applies to open windows and future popups and is remembered after restarting. **System** follows changes to your Windows app theme; **Light** and **Dark** keep ContextKey independent of Windows.
 
 **Test connection** uses the values currently entered in the form, including a separate vision model when provided. It sends a text-only probe, so a successful test does not by itself confirm image support. Select **Save changes** to apply settings without restarting.
 
@@ -145,6 +148,7 @@ To report a problem, open an [issue](https://github.com/phungvanquy/ContextKey/i
 ContextKey uses Rust, Tauri 2, and static HTML/CSS/JavaScript. No Node.js build pipeline is required.
 
 - [Development guide](docs/DEVELOPMENT.md): prerequisites, local builds, architecture, tests, releases, and icon maintenance.
+- [Microsoft Store preparation](docs/MICROSOFT-STORE.md): MSIX CI, Partner Center identity, and submission requirements.
 - [Manual QA checklist](openspec/QA-CHECKLIST.md): Windows validation before a release.
 - [Behavior specifications](openspec/specs/): requirements for the app's features.
 - [Project memory](CLAUDE.md): implementation constraints and decisions for ongoing maintenance.

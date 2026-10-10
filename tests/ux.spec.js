@@ -14,6 +14,8 @@ async function bridge(page, overrides = {}) {
   await page.addInitScript(({ config, overrides }) => {
     const handlers = new Map();
     window.__mock = { calls: [], closed: false, pendingSelection: null, pendingImage: null, ...overrides };
+    const savedConfig = sessionStorage.getItem('mock-saved-config');
+    if (savedConfig) window.__mock.config = JSON.parse(savedConfig);
     window.__fire = (event, payload) => {
       for (const callback of handlers.get(event) || []) callback({ payload });
     };
@@ -24,6 +26,12 @@ async function bridge(page, overrides = {}) {
         if (command === 'get_config') {
           if (mock.loadError) throw new Error('Unable to read settings');
           return { ...config, ...mock.config };
+        }
+        if (command === 'update_config') {
+          if (mock.saveError) throw new Error('Unable to save settings');
+          mock.config = { ...config, ...mock.config, ...args.update };
+          sessionStorage.setItem('mock-saved-config', JSON.stringify(mock.config));
+          return null;
         }
         if (command === 'take_pending_chat_selection') {
           const value = mock.pendingSelection; mock.pendingSelection = null; return value;
@@ -430,6 +438,62 @@ test('settings actions remain visible at the default window size', async ({ page
   await page.locator('[data-action="screenshot"]').scrollIntoViewIfNeeded();
   await expect(page.locator('#save-btn')).toBeInViewport();
   await expect(page.locator('#test-btn')).toBeInViewport();
+});
+
+test('older settings default to the system theme', async ({ page }) => {
+  await openSettings(page);
+  await expect(page.getByRole('combobox', { name: 'Theme', exact: true })).toHaveValue('system');
+});
+
+for (const theme of ['system', 'light', 'dark']) {
+  test(`${theme} theme is saved explicitly and restored when settings reopen`, async ({ page }) => {
+    await openSettings(page, { config: { theme: theme === 'dark' ? 'light' : 'dark' } });
+    const select = page.getByRole('combobox', { name: 'Theme', exact: true });
+    await select.selectOption(theme);
+    await expect(page.locator('#save-status')).toHaveText('Unsaved changes');
+    expect(await requests(page, 'update_config')).toHaveLength(0);
+    await page.locator('#save-btn').click();
+    await expect(page.locator('#save-status')).toHaveText('Saved');
+    expect((await requests(page, 'update_config')).at(-1).update.theme).toBe(theme);
+    await page.reload();
+    await expect(page.locator('#save-btn')).toBeEnabled();
+    await expect(select).toHaveValue(theme);
+  });
+}
+
+test('a failed theme save reports the error and preserves the saved preference', async ({ page }) => {
+  await openSettings(page, { config: { theme: 'dark' }, saveError: true });
+  const select = page.getByRole('combobox', { name: 'Theme', exact: true });
+  await select.selectOption('light');
+  await page.locator('#save-btn').click();
+  await expect(page.locator('#save-status')).toContainText('Unable to save settings');
+  await expect(select).toBeEnabled();
+  await expect(select).toHaveValue('light');
+  await page.reload();
+  await expect(page.locator('#save-btn')).toBeEnabled();
+  await expect(select).toHaveValue('dark');
+});
+
+test('appearance navigation fits resized settings and supports keyboard controls', async ({ page }) => {
+  await openSettings(page);
+  for (const width of [360, 461, 480, 520, 600]) {
+    await page.setViewportSize({ width, height: 420 });
+    const nav = page.locator('.settings-nav');
+    expect(await nav.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+    for (const link of await page.locator('.nav-item').all()) await expect(link).toBeInViewport();
+  }
+  await page.setViewportSize({ width: 360, height: 420 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const appearance = page.getByRole('link', { name: 'Appearance', exact: true });
+  await appearance.click();
+  await expect(appearance).toHaveAttribute('aria-current', 'location');
+  const select = page.getByRole('combobox', { name: 'Theme', exact: true });
+  await expect(select).toBeInViewport();
+  await select.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(select).toHaveValue('light');
+  await expect(page.locator('#save-btn')).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test('required fields block save and errors remain until corrected', async ({ page }) => {

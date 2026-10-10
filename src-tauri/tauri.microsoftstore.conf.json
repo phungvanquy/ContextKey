@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "active": false,
+    "publisher": "ITMOvnteam",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "fixedRuntime",
+        "path": "WebView2Runtime"
+      }
+    }
+  }
+}

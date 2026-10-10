@@ -24,6 +24,7 @@
       <a class="nav-item" href="#connection" aria-current="location"><svg class="ic" aria-hidden="true"><use href="#ic-plug"/></svg>Connection</a>
       <a class="nav-item" href="#translation"><svg class="ic" aria-hidden="true"><use href="#ic-languages"/></svg>Translation</a>
       <a class="nav-item" href="#shortcuts"><svg class="ic" aria-hidden="true"><use href="#ic-keyboard"/></svg>Shortcuts</a>
+      <a class="nav-item" href="#appearance"><svg class="ic" aria-hidden="true"><use href="#ic-monitor"/></svg>Appearance</a>
     </nav>
 
     <form id="settings-form" autocomplete="off" novalidate>
@@ -126,6 +127,23 @@
               <span class="hotkey-warn"></span>
             </div>
             <p class="field-hint hotkeys-hint" id="hotkey-capture-help">Press the prefix, then the trigger key. To change a trigger, click its key and press a new one. <kbd>Esc</kbd> cancels; <kbd>Tab</kbd> moves on.</p>
+          </div>
+        </section>
+        <section class="settings-section" id="appearance" aria-labelledby="appearance-title" tabindex="-1">
+          <div class="section-heading">
+            <span class="section-icon" aria-hidden="true"><svg class="ic"><use href="#ic-monitor"/></svg></span>
+            <div><h2 id="appearance-title">Make yourself at home</h2><p>A comfortable view, day or night.</p></div>
+          </div>
+          <div class="section-body">
+            <div class="field">
+              <label class="label" for="theme">Theme</label>
+              <select class="input" id="theme" name="theme" aria-describedby="theme-hint" disabled>
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+              <span class="field-hint" id="theme-hint">System follows your Windows app theme. Save to apply across all windows.</span>
+            </div>
           </div>
         </section>
       </main>

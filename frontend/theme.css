@@ -1,5 +1,7 @@
-/* theme.css — Shared ContextKey design system (follows OS preference).
+/* theme.css — Shared ContextKey design system (follows the app preference).
    All colors are tokens; components must read var(--…), never a literal hex.
+   Tauri applies the saved System/Light/Dark preference to the native windows
+   and WebView2's prefers-color-scheme, including windows opened later.
    Dark is the default; the light block below overrides the same token names. */
 :root {
   color-scheme: dark;

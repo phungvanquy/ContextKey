@@ -44,6 +44,9 @@ fn update_config(
     let parsed = ParsedHotkeys::from_config(&new_cfg.hotkeys);
     let hotkey_state = app.state::<Arc<ArcSwap<ParsedHotkeys>>>();
     hotkey_state.store(Arc::new(parsed));
+    // Tauri updates existing windows and the default for future windows.
+    // On Windows, this also updates WebView2's prefers-color-scheme value.
+    app.set_theme(new_cfg.theme.native());
     Ok(())
 }
 
@@ -405,6 +408,10 @@ fn main() {
         .manage(screenshot::ScreenshotStore::new())
         .manage(windows::PendingChatSelection::default())
         .setup(move |app| {
+            // Set the saved preference before any window is created. None
+            // restores live system-theme tracking; no window overrides it.
+            app.set_theme(cfg.theme.native());
+
             // ── Tray menu ──────────────────────────────────────────────────────
             let menu = Menu::new(app.handle())?;
 

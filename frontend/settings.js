@@ -15,6 +15,7 @@ const modelInput      = document.getElementById('model');
 const visionModelInput = document.getElementById('vision-model');
 const targetLangInput = document.getElementById('target-lang');
 const promptInput     = document.getElementById('custom-prompt');
+const themeInput      = document.getElementById('theme');
 const resetPromptBtn  = document.getElementById('reset-prompt-btn');
 const saveBtn         = document.getElementById('save-btn');
 const testBtn         = document.getElementById('test-btn');
@@ -50,6 +51,7 @@ function validateFields(forTest = false) {
 function updateActionState() {
   saveBtn.disabled = !configLoaded || saving || testing;
   testBtn.disabled = !configLoaded || saving || testing;
+  themeInput.disabled = !configLoaded || saving || testing;
   saveBtn.querySelector('span').textContent = saving ? 'Saving…' : 'Save changes';
   testBtn.querySelector('span').textContent = testing ? 'Testing…' : 'Test connection';
   for (const [button, busy, icon] of [[saveBtn, saving, 'check'], [testBtn, testing, 'plug']]) {
@@ -96,6 +98,7 @@ async function loadConfig() {
     visionModelInput.value = cfg.vision_model    || '';
     targetLangInput.value = cfg.target_language  || '';
     promptInput.value     = cfg.custom_prompt    || DEFAULT_PROMPT;
+    themeInput.value      = cfg.theme            || 'system';
     populateHotkeys(cfg.hotkeys);
     configLoaded = true;
     showStatus('');
@@ -138,6 +141,7 @@ async function saveConfig(e) {
     vision_model:    visionModelInput.value.trim(),
     target_language: targetLangInput.value.trim(),
     custom_prompt:   promptVal,
+    theme:           themeInput.value,
     hotkeys,
   };
 

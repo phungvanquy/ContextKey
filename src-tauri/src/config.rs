@@ -54,15 +54,27 @@ pub struct HotkeyConfig {
 }
 
 fn default_hotkey_translate() -> HotkeyEntry {
-    HotkeyEntry { prefix: "Ctrl+C".into(), then: "C".into(), window_ms: 600 }
+    HotkeyEntry {
+        prefix: "Ctrl+C".into(),
+        then: "C".into(),
+        window_ms: 600,
+    }
 }
 
 fn default_hotkey_chat() -> HotkeyEntry {
-    HotkeyEntry { prefix: "Ctrl+C".into(), then: "Space".into(), window_ms: 600 }
+    HotkeyEntry {
+        prefix: "Ctrl+C".into(),
+        then: "Space".into(),
+        window_ms: 600,
+    }
 }
 
 fn default_hotkey_screenshot() -> HotkeyEntry {
-    HotkeyEntry { prefix: "RCtrl".into(), then: "RCtrl".into(), window_ms: 400 }
+    HotkeyEntry {
+        prefix: "RCtrl".into(),
+        then: "RCtrl".into(),
+        window_ms: 400,
+    }
 }
 
 impl Default for HotkeyConfig {
@@ -122,7 +134,32 @@ impl HotkeyConfig {
             }
         }
 
-        if errors.is_empty() { Ok(()) } else { Err(errors) }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
+// ── Appearance ───────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemePreference {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+impl ThemePreference {
+    pub fn native(self) -> Option<tauri::Theme> {
+        match self {
+            Self::System => None,
+            Self::Light => Some(tauri::Theme::Light),
+            Self::Dark => Some(tauri::Theme::Dark),
+        }
     }
 }
 
@@ -150,6 +187,9 @@ pub struct Config {
 
     #[serde(default)]
     pub hotkeys: HotkeyConfig,
+
+    #[serde(default)]
+    pub theme: ThemePreference,
 }
 
 impl Default for Config {
@@ -162,6 +202,7 @@ impl Default for Config {
             vision_model: String::new(),
             custom_prompt: default_custom_prompt(),
             hotkeys: HotkeyConfig::default(),
+            theme: ThemePreference::default(),
         }
     }
 }
@@ -213,8 +254,7 @@ pub fn load() -> Config {
 /// serde_json does not \u-escape non-ASCII by default, satisfying ensure_ascii=False.
 pub fn save_to_disk(cfg: &Config) -> Result<(), String> {
     let path = config_path();
-    let json = serde_json::to_string_pretty(cfg)
-        .map_err(|e| format!("serialise error: {e}"))?;
+    let json = serde_json::to_string_pretty(cfg).map_err(|e| format!("serialise error: {e}"))?;
     fs::write(&path, json.as_bytes()).map_err(|e| format!("write error: {e}"))
 }
 
@@ -233,32 +273,47 @@ impl ConfigState {
     }
 
     pub fn update(&self, partial: ConfigUpdate) -> Result<(), String> {
+        self.update_with_save(partial, save_to_disk)
+    }
+
+    fn update_with_save(
+        &self,
+        partial: ConfigUpdate,
+        save: impl FnOnce(&Config) -> Result<(), String>,
+    ) -> Result<(), String> {
         let mut cfg = self.0.lock().unwrap();
+        // Keep the live settings unchanged if validation or persistence fails.
+        let mut next = cfg.clone();
         if let Some(v) = partial.api_key {
-            cfg.api_key = v;
+            next.api_key = v;
         }
         if let Some(v) = partial.base_url {
-            cfg.base_url = v;
+            next.base_url = v;
         }
         if let Some(v) = partial.target_language {
-            cfg.target_language = v;
+            next.target_language = v;
         }
         if let Some(v) = partial.model {
-            cfg.model = v;
+            next.model = v;
         }
         if let Some(v) = partial.vision_model {
-            cfg.vision_model = v;
+            next.vision_model = v;
         }
         if let Some(v) = partial.custom_prompt {
-            cfg.custom_prompt = v;
+            next.custom_prompt = v;
         }
         if let Some(v) = partial.hotkeys {
             if let Err(errors) = v.validate() {
                 return Err(format!("hotkey config invalid: {}", errors.join("; ")));
             }
-            cfg.hotkeys = v;
+            next.hotkeys = v;
         }
-        save_to_disk(&cfg)
+        if let Some(v) = partial.theme {
+            next.theme = v;
+        }
+        save(&next)?;
+        *cfg = next;
+        Ok(())
     }
 }
 
@@ -272,4 +327,101 @@ pub struct ConfigUpdate {
     pub vision_model: Option<String>,
     pub custom_prompt: Option<String>,
     pub hotkeys: Option<HotkeyConfig>,
+    pub theme: Option<ThemePreference>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_config_defaults_to_system_without_losing_settings() {
+        let cfg: Config = serde_json::from_str(
+            r#"{"api_key":"existing-key","model":"existing-model","target_language":"French"}"#,
+        )
+        .unwrap();
+        assert_eq!(cfg.theme, ThemePreference::System);
+        assert_eq!(cfg.api_key, "existing-key");
+        assert_eq!(cfg.model, "existing-model");
+        assert_eq!(cfg.target_language, "French");
+    }
+
+    #[test]
+    fn saved_themes_round_trip_and_map_to_native_preferences() {
+        for (value, preference, native) in [
+            ("system", ThemePreference::System, None),
+            ("light", ThemePreference::Light, Some(tauri::Theme::Light)),
+            ("dark", ThemePreference::Dark, Some(tauri::Theme::Dark)),
+        ] {
+            let cfg = Config {
+                theme: preference,
+                ..Config::default()
+            };
+            let json = serde_json::to_value(&cfg).unwrap();
+            assert_eq!(json["theme"], value);
+            assert_eq!(
+                serde_json::from_value::<Config>(json).unwrap().theme,
+                preference
+            );
+            assert_eq!(preference.native(), native);
+        }
+    }
+
+    #[test]
+    fn invalid_theme_updates_are_rejected() {
+        for value in [r#""sepia""#, "42", "{}"] {
+            let json = format!(r#"{{"theme":{value}}}"#);
+            assert!(serde_json::from_str::<ConfigUpdate>(&json).is_err());
+        }
+    }
+
+    #[test]
+    fn partial_updates_preserve_theme_and_theme_changes_are_persisted() {
+        let state = ConfigState::new(Config {
+            theme: ThemePreference::Dark,
+            ..Config::default()
+        });
+        let update = serde_json::from_str(r#"{"model":"updated-model"}"#).unwrap();
+        state
+            .update_with_save(update, |cfg| {
+                assert_eq!(cfg.theme, ThemePreference::Dark);
+                assert_eq!(cfg.model, "updated-model");
+                Ok(())
+            })
+            .unwrap();
+        let update = serde_json::from_str(r#"{"theme":"light"}"#).unwrap();
+        state
+            .update_with_save(update, |cfg| {
+                let saved = serde_json::to_string_pretty(cfg).unwrap();
+                let reloaded: Config = serde_json::from_str(&saved).unwrap();
+                assert_eq!(reloaded.theme, ThemePreference::Light);
+                assert_eq!(reloaded.model, "updated-model");
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(state.get().theme, ThemePreference::Light);
+    }
+
+    #[test]
+    fn failed_save_keeps_the_active_config_unchanged() {
+        let state = ConfigState::new(Config::default());
+        let before = serde_json::to_value(state.get()).unwrap();
+        let update = serde_json::from_str(r#"{"theme":"dark","model":"updated-model"}"#).unwrap();
+        let result = state.update_with_save(update, |_| Err("Disk full".into()));
+        assert_eq!(result.unwrap_err(), "Disk full");
+        assert_eq!(serde_json::to_value(state.get()).unwrap(), before);
+    }
+
+    #[test]
+    fn invalid_hotkeys_do_not_partially_apply_settings() {
+        let state = ConfigState::new(Config::default());
+        let before = serde_json::to_value(state.get()).unwrap();
+        let update = serde_json::from_str(
+            r#"{"theme":"dark","model":"updated-model","hotkeys":{"translate":{"prefix":"invalid","then":"C","window_ms":600}}}"#,
+        ).unwrap();
+        let result =
+            state.update_with_save(update, |_| panic!("invalid settings must not be saved"));
+        assert!(result.is_err());
+        assert_eq!(serde_json::to_value(state.get()).unwrap(), before);
+    }
 }

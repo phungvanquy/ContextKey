@@ -93,6 +93,7 @@ If the hook affects composition, record the reproduction details and consult the
 ## Appearance
 
 - [ ] Translation, chat, and Settings remain readable in both light and dark themes, with consistent focus and hover states.
+- [ ] Settings → Appearance → Theme saves System/Light/Dark, updates open windows and the Settings title bar, and applies to newly opened popups/toasts and after restart. Light/Dark stay fixed when the Windows app theme changes; System resumes following it. Unsaved choices and failed saves do not change the active theme.
 - [ ] Interface icons inherit their state colors, and loading indicators animate correctly.
 - [ ] Rounded popup corners, shadows, topmost behavior, and positioning work together on Windows.
 - [ ] Translation and chat have transparent corners without an extra white outline or clipped shadow in light/dark mode at 100%, 125%, and 200% scaling. Dragging and resizing still work after disabling native shadows.

@@ -3,6 +3,8 @@ config.json
 
 # Rust / Tauri build artifacts
 src-tauri/target/
+src-tauri/WebView2Runtime/
+__pycache__/
 
 # Per-machine tool permissions, accumulated per session — not shared config
 .claude/settings.local.json

@@ -13,7 +13,7 @@ The application SHALL persist configuration at `~/.contextkey_config.json`, reta
 #### Scenario: Schema and defaults
 
 - **WHEN** configuration is represented in memory or written to disk
-- **THEN** it contains `api_key` (empty), `base_url` (`https://api.openai.com/v1`), `target_language` (`Vietnamese`), `model` (`gpt-4o-mini`), `vision_model` (empty), `custom_prompt` (the built-in translation template), and `hotkeys`
+- **THEN** it contains `api_key` (empty), `base_url` (`https://api.openai.com/v1`), `target_language` (`Vietnamese`), `model` (`gpt-4o-mini`), `vision_model` (empty), `custom_prompt` (the built-in translation template), `hotkeys`, and `theme` (`system`)
 - **AND** the default hotkeys are translation `Ctrl+C` → `C` within 600 ms, chat `Ctrl+C` → `Space` within 600 ms, and screenshot `RCtrl` → `RCtrl` within 400 ms
 
 #### Scenario: Existing Python config keeps working
@@ -58,6 +58,36 @@ Saving SHALL write pretty-printed, UTF-8, non-ASCII-escaped JSON.
 
 - **WHEN** configuration is saved
 - **THEN** the file is written as JSON indented for readability, encoded UTF-8, with non-ASCII characters preserved literally (not `\uXXXX`-escaped)
+
+#### Scenario: Save fails
+
+- **WHEN** validation or writing the config fails
+- **THEN** the active in-memory settings and theme remain unchanged and Settings reports the error
+
+### Requirement: Saved appearance preference
+
+Settings SHALL offer **System**, **Light**, and **Dark** under **Appearance → Theme**, persisted as `system`, `light`, or `dark`. The default SHALL be `system`, including when an older config omits the field.
+
+#### Scenario: Apply an explicit theme
+
+- **WHEN** the user selects Light or Dark and saves successfully
+- **THEN** existing windows, native title bars, and newly opened windows use that appearance independently of the Windows app theme
+- **AND** the preference is restored before opening windows on the next launch
+
+#### Scenario: Follow the system again
+
+- **WHEN** the user selects System and saves successfully
+- **THEN** the app follows the current Windows app theme and subsequent system theme changes
+
+#### Scenario: Unsaved choice
+
+- **WHEN** the user changes the selector without saving
+- **THEN** the active theme remains unchanged and Settings indicates unsaved changes
+
+#### Scenario: Invalid preference
+
+- **WHEN** a config update supplies a theme other than `system`, `light`, or `dark`
+- **THEN** the update is rejected without changing the saved or active settings
 
 ### Requirement: Settings window
 
