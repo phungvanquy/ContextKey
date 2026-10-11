@@ -1,100 +1,142 @@
 <p align="center">
-  <img src="src-tauri/icons/icon.png" alt="ContextKey logo" width="112" height="112" />
+  <img src="src-tauri/icons/icon.png" alt="ContextKey logo" width="96" height="96" />
 </p>
 
-# ContextKey
+<h1 align="center">ContextKey</h1>
 
-**Understanding, a shortcut away.**
+<p align="center">
+  <strong>Understanding, a shortcut away.</strong><br />
+  Translate text, ask follow-up questions, and understand screenshots from your Windows desktop.
+</p>
 
-ContextKey brings translation and AI assistance to your Windows desktop. Select text or capture a screen region, invoke a shortcut, and work with the result in a popup beside your cursor.
+<p align="center">
+  <a href="https://github.com/phungvanquy/ContextKey/releases"><img src="https://img.shields.io/github/v/release/phungvanquy/ContextKey?style=flat-square&amp;color=6952D5&amp;label=release" alt="Latest release" /></a>
+  <a href="https://github.com/phungvanquy/ContextKey/actions/workflows/build.yml"><img src="https://github.com/phungvanquy/ContextKey/actions/workflows/build.yml/badge.svg" alt="Windows build status" /></a>
+  <img src="https://img.shields.io/badge/platform-Windows-0078D4?style=flat-square" alt="Platform: Windows" />
+</p>
 
-[Download](https://github.com/phungvanquy/ContextKey/releases) · [UI previews](docs/previews/README.md) · [Getting started](#getting-started) · [Configuration](#configuration) · [Development](docs/DEVELOPMENT.md) · [Report an issue](https://github.com/phungvanquy/ContextKey/issues)
+<p align="center">
+  <a href="https://github.com/phungvanquy/ContextKey/releases"><strong>Download for Windows</strong></a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#configuration">Configuration</a> ·
+  <a href="docs/DEVELOPMENT.md">Development</a> ·
+  <a href="https://github.com/phungvanquy/ContextKey/issues">Report an issue</a>
+</p>
+
+---
+
+Select text or capture a screen region, invoke a shortcut, and work with the result in a popup beside your cursor. ContextKey runs in the system tray and connects to the API endpoint and models you choose.
+
+| Light theme | Dark theme |
+| :---: | :---: |
+| <img src="docs/previews/popup-light.png" alt="Light translation popup showing English text translated into Vietnamese" width="420" /> | <img src="docs/previews/popup-dark.png" alt="Dark translation popup showing English text translated into Vietnamese" width="420" /> |
+
+<p align="center">
+  <sub>Browser previews with sample text. <a href="docs/previews/README.md">Explore the chat, settings, and appearance previews →</a></sub>
+</p>
 
 ## Features
 
-| Capability | What you can do |
-| --- | --- |
-| Text translation | Translate copied text into your preferred language, with streamed results, copy, and read-aloud controls. |
-| Contextual chat | Ask follow-up questions about selected text, or clear the context to start a general conversation. |
-| Screenshot questions | Capture a region on any monitor, review the preview, and ask a vision-capable model about it. |
-| Configurable shortcuts | Customize the keyboard sequences for translation, chat, and screen capture. |
-| Provider settings | Use a compatible API endpoint, choose your models, and customize the translation prompt. |
-| Desktop integration | Keep the app in the system tray and choose a light, dark, or system theme. |
+- **Translate in place.** Stream translations into a popup, then copy the result or listen with read-aloud controls.
+- **Chat with context.** Ask follow-up questions about selected text or start a general conversation.
+- **Ask about your screen.** Capture a region on any monitor, review it, and send a question to an image-capable model.
+- **Use your preferred provider.** Configure an OpenAI-compatible endpoint, separate text and vision models, and your own translation instructions.
+- **Make it your own.** Customize the shortcuts and choose a light, dark, or system theme.
 
-Windows is the current desktop target. The global keyboard hook is implemented with Windows APIs; macOS and Linux desktop support is not implemented.
+**Platform:** Windows. Global shortcuts use Windows APIs; macOS and Linux desktop support is not implemented.
 
 ## Getting started
 
-1. Open [Releases](https://github.com/phungvanquy/ContextKey/releases) and download the Windows installer attached to a release.
-2. Install and launch the app. ContextKey runs in the system tray; Settings opens automatically when no API key is configured.
-3. Enter your **API Key**, **Base URL**, and **Model**. Choose a **Target Language** for translation.
-4. Select **Test connection**, then **Save changes**. You can reopen Settings from the tray menu at any time.
-5. Select text in another application and try a shortcut below.
+You need a Windows PC and an API key for a compatible Chat Completions endpoint. Screenshot questions also require an image-capable model.
 
-The installer can download the WebView2 runtime when needed; that installation step requires an internet connection. See [Tauri's WebView2 installation documentation](https://v2.tauri.app/distribute/windows-installer/#downloaded-bootstrapper).
+1. **Install.** Download the Windows installer (`*-setup.exe`) from [Releases](https://github.com/phungvanquy/ContextKey/releases), then install and launch ContextKey.
+2. **Connect.** Settings opens automatically when no API key is configured. Enter your **API key**, **Base URL**, and **Model**.
+3. **Personalize.** Set your **Target language**. Add a **Vision model** if you want to use a different model for screenshots.
+4. **Save.** Select **Test connection**, then **Save changes**. Reopen Settings from the system tray whenever you need it.
+5. **Try it.** Select text in another application, hold <kbd>Ctrl</kbd>, and press <kbd>C</kbd> twice to translate.
 
-Earlier releases may still use the **Quick Translator** name. See [upgrading](#upgrading-from-quick-translator) for how existing settings carry over to ContextKey.
+The installer downloads WebView2 if needed, which requires an internet connection. The standalone `contextkey.exe` requires WebView2 to be installed already. See the [development guide](docs/DEVELOPMENT.md#local-development) for runtime and build details.
+
+For earlier releases named **Quick Translator**, see [automatic settings migration](#upgrading-from-quick-translator).
 
 ## Keyboard shortcuts
 
 | Action | Default sequence | How to use it |
 | --- | --- | --- |
-| Translate | `Ctrl+C` → `C` | Select text, hold Ctrl, and press C twice within 600 ms. Release C between presses. |
-| Chat | `Ctrl+C` → `Space` | Select text, press Ctrl+C, then press Space within 600 ms while continuing to hold Ctrl. |
-| Screenshot | `Right Ctrl` → `Right Ctrl` | Press and release Right Ctrl twice within 400 ms, then drag to select a screen region. |
+| Translate | <kbd>Ctrl</kbd> + <kbd>C</kbd> → <kbd>C</kbd> | Select text, hold Ctrl, and press C twice within 600 ms. Release C between presses. |
+| Chat | <kbd>Ctrl</kbd> + <kbd>C</kbd> → <kbd>Space</kbd> | Select text, press Ctrl+C, then press Space within 600 ms while continuing to hold Ctrl. |
+| Screenshot | <kbd>Right Ctrl</kbd> → <kbd>Right Ctrl</kbd> | Press and release Right Ctrl twice within 400 ms, then drag to select a screen region. |
 
-These are two-step sequences. Change the bindings in **Settings → Shortcuts** and select **Save changes** to apply them immediately. Shortcut keystrokes also reach the foreground application, so choose bindings that work well with your other tools. With a modifier-only prefix, copy the text before invoking translation or chat.
+These are two-step sequences. Customize them in **Settings → Shortcuts** and select **Save changes** to apply them immediately.
+
+Shortcut keystrokes also reach the foreground application. Choose bindings that work well with your other tools; with a modifier-only prefix, copy the text before invoking translation or chat.
 
 ## Using ContextKey
 
 ### Translate text
 
-Select and copy text with the translation shortcut. The result streams into a popup near the cursor. Use **Copy** after the response finishes, or the speaker button to read the translation aloud.
+Select text and invoke the translation shortcut. The result streams into a popup near the cursor. Use **Copy** after the response finishes, or the speaker button to read it aloud.
 
-Drag the header to move the popup, or resize its edges to adjust the reading area. Manual sizes are remembered. Press **Esc** or click outside the popup to close it.
+Drag the header to move the popup or resize its edges to adjust the reading area. Manual sizes are remembered. Press <kbd>Esc</kbd> or click outside to close it.
 
 ### Ask about selected text
 
-Use the chat shortcut to open a conversation with the copied text as context. Press **Enter** or **Ctrl+Enter** to send; use **Shift+Enter** for a new line.
+Use the chat shortcut to open a conversation with the copied text as context. Chat stays open when you switch applications and is accessible from the taskbar.
 
-Chat stays open when you switch applications and is accessible from the taskbar. Invoking the chat shortcut again brings back the existing conversation, including your draft. If you copied different text, choose **New chat with selection** to use it. **New chat** starts a general conversation; clearing the selected-text context also resets the visible conversation and switches to free chat. A confirmation protects existing messages and screenshots. Closing the window ends the session.
+<details>
+<summary>Chat controls and session behavior</summary>
 
-Expand the selected-text strip to read the full source. While a reply is streaming, scroll up to read earlier messages; **Jump to latest** resumes following the reply. Retrying a failed reply keeps it beside its original question.
+- **Send:** press <kbd>Enter</kbd> or <kbd>Ctrl</kbd> + <kbd>Enter</kbd>. Use <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line.
+- **Resume:** invoke the chat shortcut again to return to the existing conversation and draft. If you copied different text, choose **New chat with selection** to use it.
+- **Start fresh:** **New chat** starts a general conversation. Clearing the selected-text context also resets the visible conversation and switches to free chat. A confirmation protects existing messages and screenshots.
+- **Read:** expand the selected-text strip to see the full source. Scroll up during a reply to read earlier messages; **Jump to latest** resumes following it.
+- **Retry:** retrying a failed reply keeps it beside its original question.
+
+Closing the chat window ends the session.
+
+</details>
 
 ### Ask about a screenshot
 
 Use the screenshot shortcut and drag across the area you want to capture. ContextKey opens the chat window with a preview attached. Enter a question and send it to submit the image to your configured endpoint.
 
-Click a thumbnail to inspect it, or choose **Remove** before sending. Submitted screenshots stay beside their messages. A screenshot captured while a reply is streaming is kept for your next question.
+<details>
+<summary>Screenshot controls and limits</summary>
 
-Press **Esc** or right-click to cancel a capture. A chat session retains at most two screenshots; adding a third removes the oldest image and marks its removal in the conversation history.
+- **Review:** click a thumbnail to inspect it, or choose **Remove** before sending. Submitted screenshots stay beside their messages.
+- **Capture during a reply:** the screenshot is kept for your next question.
+- **Cancel:** press <kbd>Esc</kbd> or right-click during capture.
+- **Image limit:** a session retains at most two screenshots. Adding a third removes the oldest image and marks its removal in the conversation history.
+
+</details>
 
 ## Configuration
 
-Open **Settings** from the system tray.
+Open **Settings** from the system tray. The form is organized into **Connection**, **Translation**, **Shortcuts**, and **Appearance**, with save and test actions visible while you scroll.
 
 | Setting | Purpose | Default |
 | --- | --- | --- |
-| API Key | Credential sent to your configured API endpoint. | Empty; required for requests. |
+| API key | Credential sent to your configured API endpoint. | Empty; required for requests. |
 | Base URL | Root URL of an OpenAI-compatible Chat Completions API. | `https://api.openai.com/v1` |
 | Model | Model used for translation and text chat. | `gpt-4o-mini` |
-| Vision Model | Optional model used when a conversation contains images. | Empty; uses the main model. |
-| Target Language | Language used by the translation prompt. | `Vietnamese` |
+| Vision model | Optional model used when a conversation contains images. | Empty; uses the main model. |
+| Target language | Language used by the translation prompt. | `Vietnamese` |
 | Translation instructions | Instructions for translation; `{target_language}` is replaced with the configured language. | Translation-only instructions. |
-| Hotkeys | Keyboard sequences for translation, chat, and screenshots. | See [Keyboard shortcuts](#keyboard-shortcuts). |
+| Shortcuts | Keyboard sequences for translation, chat, and screenshots. | See [Keyboard shortcuts](#keyboard-shortcuts). |
 | Theme | Follow Windows or choose a light or dark appearance for ContextKey. | `System` |
 
-Choose model identifiers supported by your endpoint. Screenshot questions require an image-capable model. Compatibility depends on the endpoint's support for streaming Chat Completions requests and the configured model.
+Choose model identifiers supported by your endpoint. Compatibility depends on its support for streaming Chat Completions requests and the configured model.
 
-Settings is grouped into **Connection**, **Translation**, **Shortcuts**, and **Appearance**. Use the section links to jump between them; the save and test actions stay visible while you scroll.
+**Test connection** checks the values currently entered in the form, including a separate vision model when provided. The probe is text-only, so a successful test does not confirm image support. Select **Save changes** to apply settings without restarting.
 
-To switch themes, open **Appearance → Theme**, choose **System**, **Light**, or **Dark**, and select **Save changes**. The choice applies to open windows and future popups and is remembered after restarting. **System** follows changes to your Windows app theme; **Light** and **Dark** keep ContextKey independent of Windows.
+**Theme** changes apply to open windows and future popups after saving and persist across restarts. **System** follows your Windows app theme; **Light** and **Dark** use a fixed appearance.
 
-**Test connection** uses the values currently entered in the form, including a separate vision model when provided. It sends a text-only probe, so a successful test does not by itself confirm image support. Select **Save changes** to apply settings without restarting.
+<details>
+<summary>Custom translation instructions and local endpoints</summary>
 
-The app requires a non-empty API Key even for a local endpoint. If your local server ignores authentication, a placeholder value can satisfy this field; otherwise use the credential required by that server.
+The app requires a non-empty API key even for a local endpoint. If your local server ignores authentication, a placeholder value can satisfy this field; otherwise use the credential required by that server.
 
-An example translation prompt:
+Use `{target_language}` in **Translation instructions** to insert your configured language:
 
 ```text
 Translate the user's text to {target_language}.
@@ -103,24 +145,28 @@ Reply with only the translation. Preserve the original formatting where possible
 
 Leave the prompt blank or use **Reset to default** to restore the built-in instructions.
 
+</details>
+
 ## Data and storage
+
+Selected text, conversation messages, and submitted screenshots are sent to the endpoint you configure. Capturing a screenshot alone does not send it; transmission starts when you submit a question.
+
+- **Screenshots** are held in memory and are not written to disk by ContextKey.
+- **Conversations** last only for the current chat window, with at most 50 messages retained after each completed response.
+- **Credentials** are stored in a local JSON file in plain text. Use HTTPS for remote endpoints; Settings warns when an HTTP URL would send the key without transport encryption.
 
 | File in your user profile directory | Contents |
 | --- | --- |
-| `.contextkey_config.json` | API credentials, models, language, prompt, and hotkeys. |
+| `.contextkey_config.json` | API credentials, models, language, prompt, shortcuts, and theme. |
 | `.contextkey_window_state.json` | The translation popup's saved manual size. |
 
-On Windows, these files are normally under `%USERPROFILE%`, for example `C:\Users\YourName\.contextkey_config.json`.
-
-Selected text, conversation messages, and submitted screenshots are sent to the endpoint you configure. Capturing a screenshot alone does not send it; transmission starts when you submit a question. ContextKey holds captures in memory and does not write screenshot files to disk. Conversation history lasts only for the current chat window, with at most 50 messages retained after each completed response.
-
-The API key is stored in plain JSON rather than an operating-system credential vault. Exclude configuration files and credentials from issue reports. Remote endpoints should use HTTPS; Settings warns when an HTTP URL would send the key without transport encryption.
+On Windows, these files are normally under `%USERPROFILE%`, for example `C:\Users\YourName\.contextkey_config.json`. Keep configuration files and credentials out of issue reports.
 
 ## Upgrading from Quick Translator
 
 Quit Quick Translator before starting ContextKey so both apps do not respond to the same shortcuts.
 
-When a ContextKey data file is missing, the app imports its legacy equivalent:
+When a ContextKey data file is missing, the app automatically imports its legacy equivalent:
 
 | Legacy file | ContextKey file |
 | --- | --- |
