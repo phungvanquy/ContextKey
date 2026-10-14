@@ -55,7 +55,7 @@ You need a Windows PC and an API key for a compatible Chat Completions endpoint.
 4. **Save.** Select **Test connection**, then **Save changes**. Reopen Settings from the system tray whenever you need it.
 5. **Try it.** Select text in another application, hold <kbd>Ctrl</kbd>, and press <kbd>C</kbd> twice to translate.
 
-The installer downloads WebView2 if needed, which requires an internet connection. The standalone `contextkey.exe` requires WebView2 to be installed already. See the [development guide](docs/DEVELOPMENT.md#local-development) for runtime and build details.
+The installer downloads WebView2 if needed, which requires an internet connection. The standalone `contextkey.exe` requires WebView2 to be installed already. In the current source, the standalone EXE and upcoming smaller Store package show a Windows prompt when WebView2 is unavailable, offering Microsoft's Evergreen download page; install the runtime and reopen ContextKey. The published v0.5.0 MSIX still bundles its runtime. See the [development guide](docs/DEVELOPMENT.md#local-development) for runtime and build details.
 
 For earlier releases named **Quick Translator**, see [automatic settings migration](#upgrading-from-quick-translator).
 
@@ -89,7 +89,7 @@ Use the chat shortcut to open a conversation with the copied text as context. Ch
 - **Send:** press <kbd>Enter</kbd> or <kbd>Ctrl</kbd> + <kbd>Enter</kbd>. Use <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line.
 - **Resume:** invoke the chat shortcut again to return to the existing conversation and draft. If you copied different text, choose **New chat with selection** to use it.
 - **Start fresh:** **New chat** starts a general conversation. Clearing the selected-text context also resets the visible conversation and switches to free chat. A confirmation protects existing messages and screenshots.
-- **Read:** expand the selected-text strip to see the full source. Scroll up during a reply to read earlier messages; **Jump to latest** resumes following it.
+- **Read:** expand the selected-text strip to see the full source. Replies keep your reading position as they arrive, so you can read from top to bottom. **Jump to latest** moves to the current bottom once.
 - **Retry:** retrying a failed reply keeps it beside its original question.
 
 Closing the chat window ends the session.

@@ -7,7 +7,7 @@
   <Identity
     Name="ITMO.ContextKey"
     Publisher="CN=B4AAB21C-9EB8-42AA-87B3-8F966E39D731"
-    Version="1.0.0.0"
+    Version="1.0.1.0"
     ProcessorArchitecture="x64" />
   <Properties>
     <DisplayName>ContextKey</DisplayName>

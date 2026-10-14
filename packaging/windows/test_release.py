@@ -38,7 +38,7 @@ class ReleaseVerificationTests(unittest.TestCase):
         self.package.write_bytes(b"MSIX test fixture")
         digest = hashlib.sha256(self.package.read_bytes()).hexdigest()
         (self.assets / f"{self.package_name}.sha256").write_text(f"{digest}  {self.package_name}\n")
-        self.info = {"commit": self.commit, "appVersion": version, "signed": False, "identity": identity, "sha256": digest}
+        self.info = {"commit": self.commit, "appVersion": version, "signed": False, "identity": identity, "sha256": digest, "webview2": {"mode": "evergreen", "bundled": False}}
         self.write_info()
         (self.assets / "contextkey.exe").write_bytes(b"EXE test fixture")
         self.installer = self.assets / f"ContextKey_{version}_x64-setup.exe"
@@ -73,6 +73,14 @@ class ReleaseVerificationTests(unittest.TestCase):
         self.package.write_bytes(b"changed after packaging")
         with self.assertRaisesRegex(ValueError, "checksum"):
             self.verify()
+
+    def test_bundled_or_unspecified_runtime_is_rejected(self):
+        for runtime in (None, {"version": "155.0.4283.45"}, {"mode": "evergreen", "bundled": True}):
+            with self.subTest(runtime=runtime):
+                self.info["webview2"] = runtime
+                self.write_info()
+                with self.assertRaisesRegex(ValueError, "Evergreen"):
+                    self.verify()
 
     def test_missing_installer_is_rejected(self):
         self.installer.unlink()

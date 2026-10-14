@@ -3,6 +3,7 @@ config.json
 
 # Rust / Tauri build artifacts
 src-tauri/target/
+# Legacy Fixed Version downloads from older Store builds; never packaged now.
 src-tauri/WebView2Runtime/
 __pycache__/
 

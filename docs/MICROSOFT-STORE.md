@@ -1,8 +1,8 @@
 # Microsoft Store packaging
 
-## Current status — October 10, 2026
+## Current candidate — Evergreen WebView2
 
-The MSIX manifest and Windows CI workflow use the owner's Partner Center identity. Local packaging tests and workflow lint pass. The [Store workflow runs](https://github.com/phungvanquy/ContextKey/actions/workflows/microsoft-store.yml) provide build results and unsigned upload candidates. **A successful build is not Store certification.** Windows desktop testing and the remaining listing details below are required before publication.
+The MSIX manifest and Windows CI workflow use the owner's Partner Center identity. The current source builds a smaller candidate using shared Evergreen WebView2 and native startup recovery when the runtime is unavailable. The published v0.5.0 MSIX still contains Fixed Version WebView2; this change does not replace that release. The [Store workflow runs](https://github.com/phungvanquy/ContextKey/actions/workflows/microsoft-store.yml) provide build results and unsigned upload candidates. **A successful build is not Store certification.** A new Windows build, desktop testing (including the missing-runtime cases below), and the remaining listing details are required before publication.
 
 For Store distribution, Microsoft signs MSIX packages after certification; a purchased signing certificate is not required. An unsigned upload candidate cannot be installed by double-clicking it. Direct EXE distribution has separate signing requirements. [Microsoft package and signing requirements](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements)
 
@@ -21,18 +21,17 @@ These are public identifiers, not credentials. They can be committed to the repo
 
 The family name and SID are derived identifiers, not extra manifest attributes. The Store ID identifies the reserved listing; it is not needed to assemble the MSIX. None of these values grants CI permission to submit or publish an app.
 
-The initial **Store package version is `1.0.0.0`**, maintained in the MSIX manifest. This is a separate version from the Cargo/Tauri app version (`0.5.0`). Store versions require a nonzero major component and a final component of zero. Increase the Store version for subsequent submitted updates, for example `1.0.1.0`; do not automatically reuse it for different published packages. Normal GitHub releases still require synchronized Cargo/Tauri versions and a new tag. [Store version numbering](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements#package-version-numbering)
+The **Store candidate version is `1.0.1.0`**, increased from `1.0.0.0` for the transition to Evergreen and maintained in the MSIX manifest. This is separate from the Cargo/Tauri app version (`0.5.0` in the current source). Store versions require a nonzero major component and a final component of zero. Increase the Store version for subsequent submitted updates; do not reuse it for different published packages. Normal GitHub releases still require synchronized Cargo/Tauri versions and a new tag. [Store version numbering](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements#package-version-numbering)
 
 ## CI flow
 
 [`Build Microsoft Store MSIX`](../.github/workflows/microsoft-store.yml) runs on relevant pushes to `main`/`master`, pull requests, and manual dispatch. Tagged releases also call it as a reusable workflow. It uses a Windows runner and needs no signing or Partner Center secrets.
 
 1. Validate packaging inputs and run Rust unit tests.
-2. Download the pinned x64 WebView2 runtime and check its SHA-256 before extraction.
-3. Build ContextKey using [`tauri.microsoftstore.conf.json`](../src-tauri/tauri.microsoftstore.conf.json), with the C runtime statically linked.
-4. Stage the executable, adjacent DLLs, Store logo assets, manifest, and complete WebView2 runtime. Settings, API keys, source files, and debug symbols are not selected as package inputs.
-5. Run the Windows SDK's `MakeAppx.exe` with semantic validation enabled and SHA-256 block hashes.
-6. Upload `ContextKey-MicrosoftStore-x64` as an Actions artifact containing the unsigned `.msix`, its `.sha256`, and `build-info.json` with the source commit and runtime pin.
+2. Build ContextKey using [`tauri.microsoftstore.conf.json`](../src-tauri/tauri.microsoftstore.conf.json), with the C runtime statically linked and no bundled WebView2 runtime or installer.
+3. Stage only the executable, optional `WebView2Loader.dll`, three Store logo assets, and manifest. Old runtime folders, unrelated DLLs, settings, source files, and debug symbols are not selected as package inputs.
+4. Run the Windows SDK's `MakeAppx.exe` with compression, semantic validation, and SHA-256 block hashes. Validate the archive's exact allowed payload and enforce a **25 MiB compressed size budget**.
+5. Print measured compressed/unpacked sizes and the largest entries. Upload `ContextKey-MicrosoftStore-x64` as an Actions artifact containing the unsigned `.msix`, its `.sha256`, and `build-info.json` with the source commit, measured sizes, and `webview2: {"mode": "evergreen", "bundled": false}`. Release verification also checks this runtime mode.
 
 Download and extract that artifact; upload the **`.msix` inside it** to the existing submission's Packages page. The artifact ZIP itself is not the submission package. On a release tag, the [release workflow](../.github/workflows/build.yml) waits for both Windows build jobs, checks versions and checksums, and attaches the MSIX alongside the EXE files to the GitHub release. You can download that `.msix` directly instead. Neither workflow calls Partner Center, and a GitHub release does not imply Store certification.
 
@@ -40,11 +39,13 @@ The candidate targets x64 Windows 10 build 19041 and later, including Windows 11
 
 ## WebView2 and logos
 
-The Store build includes the Fixed Version WebView2 runtime under `WebView2Runtime` beside `contextkey.exe`. Tauri selects that directory at startup. The ordinary EXE build continues to use its existing Evergreen bootstrapper configuration.
+The Store build uses the shared Evergreen WebView2 runtime. Its Tauri profile sets `webviewInstallMode.type` to `skip`: this custom MSIX flow does not run an NSIS bootstrapper. The ordinary NSIS installer still uses `downloadBootstrapper` to install WebView2 when needed.
 
-Bundling avoids relying on WebView2 being preinstalled. `win32dependencies:ExternalDependency` is only honored by App Installer, so it is not used to guarantee a Store installation's runtime. [External dependency limitations](https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-win32dependencies-externaldependency)
+Before settings migration, Tauri initialization, tray creation, or keyboard hooks, [`webview_runtime.rs`](../src-tauri/src/webview_runtime.rs) queries the runtime through Tauri's WebView2 loader. An available runtime allows normal startup with no prompt or network request. A failed query or empty version shows a native Windows message explaining how to install Evergreen and reopen ContextKey. **Yes** opens Microsoft's official download page in the default browser; **No** exits without opening a browser. Both paths exit without starting the app. If the browser cannot open, another native message displays the download URL. ContextKey does not download or run an installer itself. The same check protects the standalone EXE.
 
-The pinned download is recorded in [`webview2.json`](../packaging/windows/webview2.json): version `155.0.4283.45`, x64. Its Microsoft-hosted CAB was downloaded and hashed when preparing this flow (310,544,938 bytes). Fixed Version adds substantial package size and **does not update itself**. Before each Store release, review Microsoft's current runtime, update the version, URL, and verified SHA-256 together, then rebuild and test. Never substitute the Evergreen installer EXE for the Fixed Version CAB. [Microsoft runtime distribution guidance](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution#the-fixed-version-runtime-distribution-mode)
+Evergreen is shared and updated by Microsoft. Devices without it still need a separate runtime download; offline or managed devices need the runtime provisioned before ContextKey can run. `win32dependencies:ExternalDependency` is only honored by App Installer, so it is not used to guarantee a Store installation's runtime. [Microsoft runtime distribution guidance](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution#the-evergreen-runtime-distribution-mode), [external dependency limitations](https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-win32dependencies-externaldependency)
+
+The published v0.5.0 MSIX is 324,025,157 bytes, with 318,807,361 compressed bytes belonging to its bundled runtime. Its app executable occupies 4,683,227 compressed bytes. Removing the bundled runtime suggests an approximately 5 MB candidate, but **only the new Windows build establishes the actual size**. The 25 MiB budget leaves room for app growth while preventing a return to hundreds of megabytes. Review payload changes before increasing it.
 
 The manifest's 50, 44, and 150-pixel PNG logos are generated from the existing ContextKey artwork by [`generate_icon.py`](../src-tauri/icons/generate_icon.py). They are committed under [`packaging/windows/Assets`](../packaging/windows/Assets), so CI needs no image-generation dependency. Listing screenshots and promotional artwork are separate Partner Center inputs.
 
@@ -54,13 +55,12 @@ Install the [normal development prerequisites](DEVELOPMENT.md), Python 3.11 or l
 
 ```powershell
 python -m unittest discover -s packaging/windows -p "test_*.py" -v
-python packaging/windows/build_msix.py runtime
 $env:RUSTFLAGS = '-C target-feature=+crt-static'
 cargo tauri build --no-bundle --config src-tauri/tauri.microsoftstore.conf.json
 python packaging/windows/build_msix.py package
 ```
 
-The upload files are under `src-tauri/target/msix/output/`. The unpacked app is under `src-tauri/target/msix/stage/`. Downloaded runtime files and all build output are ignored by Git. Remove the session's `RUSTFLAGS` after building if you use different flags for other work.
+The upload files are under `src-tauri/target/msix/output/`. The unpacked app is under `src-tauri/target/msix/stage/`. All build output is ignored by Git. Leftover `src-tauri/WebView2Runtime/` directories from earlier builds are also ignored and are never staged. Remove the session's `RUSTFLAGS` after building if you use different flags for other work.
 
 For local testing without a signing certificate, enable Windows Developer Mode, quit any running ContextKey EXE installation, then register the staged package:
 
@@ -73,7 +73,9 @@ Launch **ContextKey from Start** so the test runs with package identity. To test
 ## Before submitting
 
 - Require a successful Store workflow run on the exact intended commit. Local script tests do not establish native build or Store certification success.
-- Test the packaged app on clean supported Windows systems without an installed Evergreen WebView2 runtime. Check first launch, all three theme choices across windows, both popup borders, tray behavior, hotkeys, translation, chat, screenshots, speech, saved settings, upgrade, and uninstall. Quit a separately installed EXE before testing to avoid its single-instance handler intercepting launch. Complete the [desktop QA checklist](../openspec/QA-CHECKLIST.md) and run Windows App Certification Kit.
+- On Windows 10 and Windows 11 with Evergreen installed, verify normal launch without a prompt, first-run Settings, all three theme choices across windows, both popup borders, tray behavior, hotkeys, translation, chat, screenshots, speech, and saved settings. Check launch with the network disconnected too; runtime detection must not depend on connectivity.
+- In disposable Windows test environments without a usable runtime, verify that the native prompt appears before any tray icon, hook, or webview; **No** exits without opening a browser; **Yes** opens the official page and exits. Verify the URL fallback when the browser cannot launch. Download failure, cancellation, offline operation, or a managed-device restriction must leave the app closed with settings untouched. After installing Evergreen, relaunch from Start and verify normal startup. Test the standalone EXE's recovery too.
+- Test an upgrade from the old `1.0.0.0` package to `1.0.1.0`, both with and without shared Evergreen installed. The new executable must not depend on the old package's runtime folder. Verify saved settings and uninstall behavior. Quit a separately installed EXE before testing to avoid its single-instance handler intercepting launch. Complete the [desktop QA checklist](../openspec/QA-CHECKLIST.md) and run Windows App Certification Kit.
 - Confirm the reserved display name is `ContextKey`, and review the generated package identity against Partner Center. If the submission already contains a higher package version, increase the manifest version before building.
 - Provide a public privacy-policy URL, support contact, listing screenshots, age ratings, and the other requested listing information. The privacy policy needs to describe selected text/screenshots sent to the configured AI service, local credentials/settings, data sharing, and user controls. A dedicated policy URL is still missing.
 - State that users supply a compatible API service and that provider charges may apply. Provide working test access privately in certification notes so reviewers can exercise API-dependent features. Do not put real API keys in the repository, screenshots, CI output, or public listing. [Store policies, sections 10.3 and 10.5](https://learn.microsoft.com/en-us/windows/apps/publish/store-policies)

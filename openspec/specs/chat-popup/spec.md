@@ -59,15 +59,31 @@ The popup SHALL let the user type a question in a multi-line input and send it, 
 - **WHEN** the user presses Ctrl+Enter with a non-empty question
 - **THEN** the message is sent, identically to pressing Enter
 
-#### Scenario: Transcript scrolls with new content
+#### Scenario: Replies preserve the reading position
 
-- **WHEN** new message content is appended while the user is at or near the bottom
-- **THEN** the transcript follows the newest content to the bottom
-- **WHEN** the user scrolls up to read earlier messages
-- **THEN** subsequent chunks and completion rendering preserve their reading position
-- **AND** a "Jump to latest" control lets them return to the bottom and resume following new content
-- **WHEN** the user sends a new message or manually scrolls back to the bottom
-- **THEN** following the newest content resumes
+- **WHEN** the user sends a new message
+- **THEN** the transcript reveals the new message and pending assistant bubble once
+- **WHEN** response chunks arrive, including while the user is at or near the bottom
+- **THEN** the transcript preserves its scroll position so the reply can be read from its beginning
+- **AND** completion and error rendering do not scroll to the bottom
+- **WHEN** the user scrolls through a reply or earlier messages
+- **THEN** subsequent chunks preserve that reading position
+
+#### Scenario: Jump to latest is explicit navigation
+
+- **WHEN** content extends below the visible transcript
+- **THEN** a "Jump to latest" control is available
+- **WHEN** the user activates it
+- **THEN** the transcript scrolls to the current bottom once
+- **AND** later response chunks do not automatically move the reading position
+- **WHEN** the user manually scrolls to the bottom
+- **THEN** this also does not enable automatic following
+
+#### Scenario: Layout changes do not resume scrolling
+
+- **WHEN** the composer grows, pending screenshots change, or the popup is resized
+- **THEN** the transcript does not automatically scroll to the bottom
+- **AND** its scroll position is preserved within the available scroll range
 
 #### Scenario: Send re-enabled after completion
 

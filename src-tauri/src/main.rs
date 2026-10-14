@@ -10,6 +10,8 @@ mod popup_sizing;
 mod screenshot;
 mod storage;
 mod tts;
+#[cfg(windows)]
+mod webview_runtime;
 mod window_state;
 mod windows;
 
@@ -384,6 +386,13 @@ fn resize_translate_popup(app: AppHandle, content_logical_h: f64) -> Result<(), 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 fn main() {
+    // Check before settings migration, plugins, tray, hooks, or any webview.
+    // Recovery must work even when the HTML interface cannot be created.
+    #[cfg(windows)]
+    if !webview_runtime::ensure_available() {
+        return;
+    }
+
     let cfg = config::load();
     let parsed_hotkeys = Arc::new(ArcSwap::from_pointee(
         ParsedHotkeys::from_config(&cfg.hotkeys),

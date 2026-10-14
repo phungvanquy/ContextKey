@@ -77,6 +77,9 @@ If the hook affects composition, record the reproduction details and consult the
 
 ## Runtime and display behavior
 
+- [ ] The Evergreen MSIX launches on supported Windows 10/11 with the runtime installed, including offline, without a setup prompt. Its archive contains no runtime or installer and remains below the 25 MiB package budget.
+- [ ] In a disposable Windows environment without WebView2, a native prompt appears before settings writes, tray creation, or hook installation. No exits without opening a browser; Yes opens Microsoft's download page and exits. A failed browser launch shows the URL. Installing Evergreen and relaunching restores normal startup. Repeat for the standalone EXE.
+- [ ] Upgrading the old Fixed Version MSIX (`1.0.0.0`) to the Evergreen candidate (`1.0.1.0`) preserves settings and works without the old runtime directory. Test with and without shared Evergreen present; also check uninstall.
 - [ ] Launching a second instance brings Settings forward instead of starting another active hook. A shortcut still produces one popup and one API request.
 - [ ] Popups appear near the cursor on monitors with different scaling, including a secondary monitor.
 - [ ] Saving an HTTP endpoint displays a transport warning; an HTTPS or empty URL does not.
@@ -87,6 +90,7 @@ If the hook affects composition, record the reproduction details and consult the
 - [x] Moving the translation popup and using Copy, read-aloud, Details, or Retry keeps it open. Clicking another app closes it after the focus check; Esc and the close button also work.
 - [ ] The translation popup can be resized. The source-text tooltip shows the full input. Copy is unavailable during streaming and copies plain text after completion.
 - [ ] Enter and Ctrl+Enter send chat messages; Shift+Enter inserts a new line. Empty messages are ignored, and the input resets after sending.
+- [ ] Sending a chat message reveals the pending reply once. Long replies preserve the reading position during streaming, completion, and errors. **Jump to latest** and manual scrolling to the bottom do not enable automatic following; growing the input, attaching a screenshot, and resizing do not pull the transcript down.
 - [ ] Enter confirms an active Vietnamese or CJK composition without sending the message.
 - [ ] Settings rejects malformed endpoint URLs. Empty credentials can be saved with a warning, and **Test connection** uses the current form values.
 

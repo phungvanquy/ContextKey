@@ -94,6 +94,7 @@ ContextKey runs as a single tray process and creates windows when needed. Transl
 | Modules | Role |
 | --- | --- |
 | `main.rs`, `windows.rs` | App lifecycle, commands, tray menu, and window creation. |
+| `webview_runtime.rs` | Windows startup runtime detection and native recovery before any webview or keyboard hook. |
 | `keyhook.rs`, `hotkey.rs` | Windows keyboard hook and configurable two-step shortcut detection. |
 | `clipboard.rs` | Reads the copied text used by translation and contextual chat. |
 | `api.rs` | Shared HTTP client, streaming Chat Completions requests, errors, and request cancellation. |
@@ -134,7 +135,7 @@ The [build workflow](../.github/workflows/build.yml) runs Rust unit tests and bu
 
 Before pushing a release tag, synchronize the versions in `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, add `docs/releases/<tag>.md`, and review the Windows branch-build result and manual QA record. Pushing the tag starts the publishing workflow. The publishing job checks the tag, versions, MSIX source commit, expected files, and checksums. It uploads to a draft before publication and refuses to overwrite an already published release.
 
-For Microsoft Store distribution, the [MSIX workflow](../.github/workflows/microsoft-store.yml) builds an unsigned upload candidate using the owner's Partner Center identity and a bundled Fixed Version WebView2 runtime. Branch and manual runs upload an Actions artifact; tag releases call the same workflow and attach its output to the GitHub release. Neither submits to Partner Center. See the [Store packaging guide](MICROSOFT-STORE.md) for versioning, local builds, runtime updates, and the remaining Windows/listing checks. Microsoft signs Store packages after certification.
+For Microsoft Store distribution, the [MSIX workflow](../.github/workflows/microsoft-store.yml) builds an unsigned upload candidate using the owner's Partner Center identity and shared Evergreen WebView2. The executable checks runtime availability before initializing Tauri; missing runtimes produce a native Windows prompt offering Microsoft's download page. Packaging validates an explicit payload and a 25 MiB size budget, and records measured sizes in `build-info.json`. Branch and manual runs upload an Actions artifact; tag releases call the same workflow and attach its output to the GitHub release. Neither submits to Partner Center. See the [Store packaging guide](MICROSOFT-STORE.md) for versioning, local builds, runtime recovery, and the remaining Windows/listing checks. Microsoft signs Store packages after certification.
 
 ## App icon maintenance
 

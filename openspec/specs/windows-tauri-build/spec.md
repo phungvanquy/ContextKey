@@ -69,3 +69,27 @@ The application SHALL bundle the static frontend and app icons without a JavaScr
 
 - **WHEN** the installer needs to install WebView2
 - **THEN** it uses the configured `downloadBootstrapper` mode
+
+### Requirement: Store package uses shared Evergreen WebView2
+
+The Store MSIX SHALL use an installed Evergreen WebView2 runtime without bundling a runtime or installer. Packaging SHALL stage only the application executable, optional WebView2 loader DLL, manifest, and Store logos. The archive SHALL be checked against an explicit allowed payload and a 25 MiB compressed size budget, with measured sizes and the Evergreen mode recorded in build metadata.
+
+#### Scenario: Windows startup with an available runtime
+
+- **WHEN** the WebView2 loader reports an available runtime
+- **THEN** the app starts normally without a recovery prompt or runtime download
+
+#### Scenario: Windows startup without a usable runtime
+
+- **WHEN** the runtime query fails or returns an empty version
+- **THEN** a native Windows dialog explains how to install Evergreen and reopen ContextKey
+- **AND** accepting opens Microsoft's official download page in the default browser, while declining opens nothing
+- **AND** a failed browser launch displays the download URL in a native dialog
+- **AND** the process exits before settings migration, Tauri initialization, tray creation, or keyboard-hook installation
+- **AND** the same behavior applies to standalone EXE launches
+
+#### Scenario: Stale Fixed Version files in a build checkout
+
+- **WHEN** old runtime folders or unrelated build artifacts remain in the checkout
+- **THEN** they are excluded from the new package
+- **AND** an archive containing unexpected payload files fails validation

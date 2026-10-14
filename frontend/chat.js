@@ -30,7 +30,6 @@ let currentTurn = null;
 let streaming = false;
 let ready = false;
 let isClosed = false;
-let followLatest = true;
 let resetAction = null;
 const failedTurns = new Set();
 
@@ -79,19 +78,21 @@ function updateContext() {
 }
 
 function updateJumpButton() {
-  jumpLatest.hidden = followLatest || transcript.scrollHeight <= transcript.clientHeight;
+  const remaining = transcript.scrollHeight - transcript.clientHeight - transcript.scrollTop;
+  jumpLatest.hidden = remaining <= 1;
 }
 
-function scrollToBottom(force = false) {
-  if (force) followLatest = true;
-  if (followLatest) transcript.scrollTop = transcript.scrollHeight;
+// Scroll only for an explicit action. Reaching the bottom must not make later
+// response chunks pull the reader away from the beginning of the reply.
+function scrollToBottom() {
+  transcript.scrollTop = transcript.scrollHeight;
   updateJumpButton();
 }
 
 function autoGrow() {
   chatInput.style.height = 'auto';
   chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
-  scrollToBottom();
+  updateJumpButton();
 }
 
 function resetChat(context, preserveDraft) {
@@ -109,7 +110,7 @@ function resetChat(context, preserveDraft) {
   autoGrow();
   renderPendingImages();
   updateControls();
-  scrollToBottom(true);
+  scrollToBottom();
   announce('New chat started. Previous messages and screenshots were cleared.');
   chatInput.focus();
 }
@@ -141,7 +142,6 @@ function addUserMessage(text, images) {
   el.appendChild(body);
   transcript.appendChild(el);
   emptyState.hidden = true;
-  scrollToBottom(true);
 }
 
 async function send() {
@@ -162,6 +162,7 @@ async function send() {
   addUserMessage(question, images);
   renderPendingImages();
   const turn = beginTurn(userMessage);
+  scrollToBottom();
   chatInput.focus();
   await runTurn(turn);
 }
@@ -172,10 +173,10 @@ function beginTurn(userMessage, existingBubble) {
   aiEl.innerHTML = '<span class="typing" aria-label="Waiting for a reply"><span></span><span></span><span></span></span>';
   if (!existingBubble) transcript.appendChild(aiEl);
   let full = '';
-  const markdownRenderer = createMarkdownRenderer(aiEl, scrollToBottom);
+  const markdownRenderer = createMarkdownRenderer(aiEl, updateJumpButton);
   streaming = true;
   updateControls();
-  scrollToBottom();
+  updateJumpButton();
 
   const turn = {
     userMessage,
@@ -209,7 +210,7 @@ function beginTurn(userMessage, existingBubble) {
         aiEl.appendChild(partial);
       }
       aiEl.appendChild(buildErrorNode(error, this));
-      scrollToBottom();
+      updateJumpButton();
       // The backend emits done after error. Keep this turn attached until then
       // so that terminal event cannot finish a newly submitted request.
     },
@@ -226,7 +227,7 @@ function beginTurn(userMessage, existingBubble) {
         }
       }
       this.release();
-      scrollToBottom();
+      updateJumpButton();
     },
   };
   currentTurn = turn;
@@ -371,7 +372,7 @@ function renderPendingImages() {
     imageStrip.appendChild(card);
   }
   updateContext();
-  scrollToBottom();
+  updateJumpButton();
 }
 
 async function takeSelection() {
@@ -424,12 +425,9 @@ async function init() {
     event.currentTarget.textContent = actual ? 'Fit to window' : 'Show actual size';
     event.currentTarget.setAttribute('aria-pressed', String(actual));
   });
-  transcript.addEventListener('scroll', () => {
-    followLatest = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 48;
-    updateJumpButton();
-  });
-  jumpLatest.addEventListener('click', () => scrollToBottom(true));
-  new ResizeObserver(() => scrollToBottom()).observe(transcript);
+  transcript.addEventListener('scroll', updateJumpButton);
+  jumpLatest.addEventListener('click', scrollToBottom);
+  new ResizeObserver(updateJumpButton).observe(transcript);
   chatInput.addEventListener('input', () => { autoGrow(); updateControls(); });
   chatInput.addEventListener('keydown', event => {
     if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) return;

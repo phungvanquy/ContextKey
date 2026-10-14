@@ -8,6 +8,8 @@ from pathlib import Path
 import tomllib
 import xml.etree.ElementTree as ET
 
+from build_msix import WEBVIEW2
+
 
 def verify_release(root, assets, tag, commit):
     app = json.loads((root / "src-tauri/tauri.conf.json").read_text(encoding="utf-8"))
@@ -20,6 +22,8 @@ def verify_release(root, assets, tag, commit):
     info = json.loads((assets / "build-info.json").read_text(encoding="utf-8"))
     if info["commit"] != commit or info["appVersion"] != version or info["signed"] is not False:
         raise ValueError("The MSIX must be the unsigned candidate from this exact app commit.")
+    if info.get("webview2") != WEBVIEW2:
+        raise ValueError("The MSIX must use shared Evergreen WebView2 without a bundled runtime.")
     manifest = ET.parse(root / "packaging/windows/AppxManifest.xml")
     identity = manifest.find("{http://schemas.microsoft.com/appx/manifest/foundation/windows10}Identity").attrib
     if info["identity"] != identity:

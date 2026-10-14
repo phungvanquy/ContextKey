@@ -60,9 +60,6 @@ jobs:
         working-directory: src-tauri
         run: cargo test --bins
 
-      - name: Download and verify bundled WebView2
-        run: python packaging/windows/build_msix.py runtime
-
       - name: Build ContextKey with the Store runtime configuration
         uses: tauri-apps/tauri-action@v0
         with:
@@ -70,7 +67,7 @@ jobs:
           args: --no-bundle --config tauri.microsoftstore.conf.json
           uploadPlainBinary: true
 
-      - name: Package and validate MSIX
+      - name: Package MSIX and check payload and size
         run: python packaging/windows/build_msix.py package
 
       - name: Upload Partner Center package

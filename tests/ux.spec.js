@@ -357,28 +357,97 @@ test('screenshot preview supports keyboard access and Escape preserves chat', as
   expect(await page.evaluate(() => window.__mock.closed)).toBe(false);
 });
 
-test('scrolling up pauses following until Jump to latest is used', async ({ page }) => {
-  await openChat(page, '');
-  await send(page, 'A long reply');
-  await page.evaluate(() => window.__fire('chat://chunk', 'A line of the explanation.\n'.repeat(100)));
-  await page.locator('#transcript').evaluate(el => { el.scrollTop = 0; });
-  await expect(page.locator('#jump-latest')).toBeVisible();
-  await page.evaluate(() => window.__fire('chat://chunk', '\nMore content.'));
-  expect(await page.locator('#transcript').evaluate(el => el.scrollTop)).toBe(0);
-  await page.locator('#jump-latest').click();
-  await expect(page.locator('#jump-latest')).toBeHidden();
-  await page.evaluate(() => window.__fire('chat://chunk', '\nAnother line.'));
-  await expect.poll(() => page.locator('#transcript').evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop)).toBeLessThan(2);
-});
+for (const followUp of [false, true]) {
+  test(`${followUp ? 'a follow-up' : 'the first'} reply keeps its opening visible as it grows`, async ({ page }) => {
+    await openChat(page, '');
+    if (followUp) {
+      await send(page, 'Previous question');
+      await complete(page, 'An earlier paragraph.\n\n'.repeat(30));
+    }
+    await send(page, 'A long reply');
+    const transcript = page.locator('#transcript');
+    const output = page.locator('.msg-ai').last();
+    await expect(output.locator('.typing')).toBeInViewport();
+    const start = await transcript.evaluate(el => el.scrollTop);
+    if (followUp) expect(start).toBeGreaterThan(0);
+    else expect(start).toBe(0);
 
-test('completion preserves a scrolled-up reading position', async ({ page }) => {
+    await streamEvent(page, 'chat', 'chunk', '## Opening\n\nRead from here.');
+    await expect(output.locator('h2')).toHaveText('Opening');
+    expect(await transcript.evaluate(el => el.scrollTop)).toBe(start);
+    await streamEvent(page, 'chat', 'chunk', '\n\nA paragraph of explanation.\n\n'.repeat(30));
+    await expect(output.locator('p')).toHaveCount(31);
+    expect(await transcript.evaluate(el => el.scrollTop)).toBe(start);
+    await expect(output.locator('h2')).toBeInViewport();
+    await expect(page.locator('#jump-latest')).toBeVisible();
+    await complete(page, '\n\nFinal paragraph.');
+    expect(await transcript.evaluate(el => el.scrollTop)).toBe(start);
+  });
+}
+
+for (const navigation of ['Jump to latest', 'manual scrolling']) {
+  test(`${navigation} reaches the bottom once without following later chunks`, async ({ page }) => {
+    await openChat(page, '');
+    await send(page, 'Many paragraphs');
+    await streamEvent(page, 'chat', 'chunk', 'A paragraph of explanation.\n\n'.repeat(30));
+    await expect(page.locator('.msg-ai p')).toHaveCount(30);
+    const transcript = page.locator('#transcript');
+    await transcript.evaluate(el => { el.scrollTop = 0; });
+    await expect(page.locator('#jump-latest')).toBeVisible();
+    if (navigation === 'Jump to latest') await page.locator('#jump-latest').click();
+    else await transcript.evaluate(el => { el.scrollTop = el.scrollHeight; });
+    await expect(page.locator('#jump-latest')).toBeHidden();
+    expect(await transcript.evaluate(el => el.scrollHeight - el.clientHeight - el.scrollTop)).toBeLessThan(2);
+    const position = await transcript.evaluate(el => el.scrollTop);
+
+    // Even one more line below the viewport should be reachable with the button.
+    await streamEvent(page, 'chat', 'chunk', 'Another line.');
+    await expect(page.locator('.msg-ai p').last()).toHaveText('Another line.');
+    expect(await transcript.evaluate(el => el.scrollTop)).toBe(position);
+    await expect(page.locator('#jump-latest')).toBeVisible();
+    await complete(page, '\n\nEnd.');
+    expect(await transcript.evaluate(el => el.scrollTop)).toBe(position);
+  });
+}
+
+for (const ending of ['success', 'failure']) {
+  test(`${ending} preserves a reading position partway through a reply`, async ({ page }) => {
+    await openChat(page, '');
+    await send(page, 'Many paragraphs');
+    await streamEvent(page, 'chat', 'chunk', 'A paragraph of explanation.\n\n'.repeat(30));
+    await expect(page.locator('.msg-ai p')).toHaveCount(30);
+    const transcript = page.locator('#transcript');
+    await transcript.evaluate(el => { el.scrollTop = 160; });
+    await expect(page.locator('#jump-latest')).toBeVisible();
+    await streamEvent(page, 'chat', 'chunk', 'More content.');
+    await expect(page.locator('.msg-ai p').last()).toHaveText('More content.');
+    expect(await transcript.evaluate(el => el.scrollTop)).toBe(160);
+    if (ending === 'success') await complete(page, '\n\nEnd.');
+    else await fail(page);
+    expect(await transcript.evaluate(el => el.scrollTop)).toBe(160);
+  });
+}
+
+test('composer, attachment and window resizing preserve the reading position', async ({ page }) => {
   await openChat(page, '');
   await send(page, 'Many paragraphs');
-  await page.evaluate(() => window.__fire('chat://chunk', 'A paragraph of explanation.\n\n'.repeat(100)));
-  await page.locator('#transcript').evaluate(el => { el.scrollTop = 0; });
+  await streamEvent(page, 'chat', 'chunk', 'A paragraph of explanation.\n\n'.repeat(30));
+  await expect(page.locator('.msg-ai p')).toHaveCount(30);
+  const transcript = page.locator('#transcript');
+  await transcript.evaluate(el => { el.scrollTop = el.scrollHeight; });
+  await expect(page.locator('#jump-latest')).toBeHidden();
+  const position = await transcript.evaluate(el => el.scrollTop);
+
+  await page.locator('#chat-input').fill('A draft\nwith several\nlines to type');
   await expect(page.locator('#jump-latest')).toBeVisible();
-  await complete(page, 'End.');
-  expect(await page.locator('#transcript').evaluate(el => el.scrollTop)).toBe(0);
+  expect(await transcript.evaluate(el => el.scrollTop)).toBe(position);
+  await attach(page, 'Next screenshot');
+  await page.setViewportSize({ width: 500, height: 500 });
+  // Let ResizeObserver callbacks run before checking the final position.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(await transcript.evaluate(el => el.scrollTop)).toBe(position);
+  await complete(page, '\n\nEnd.');
+  expect(await transcript.evaluate(el => el.scrollTop)).toBe(position);
 });
 
 test('multiline and IME input do not accidentally send', async ({ page }) => {

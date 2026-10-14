@@ -5,8 +5,7 @@
     "publisher": "ITMOvnteam",
     "windows": {
       "webviewInstallMode": {
-        "type": "fixedRuntime",
-        "path": "WebView2Runtime"
+        "type": "skip"
       }
     }
   }

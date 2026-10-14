@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build the unsigned Store package on Windows using the Windows SDK.
 
-No signing credentials or Partner Center credentials are needed. All downloads
-and generated files stay in ignored directories; only an explicit payload is
+No signing credentials or Partner Center credentials are needed. Generated
+files stay in ignored directories; only an explicit payload is
 staged, never the repository or the whole Cargo output directory.
 """
 
@@ -15,8 +15,6 @@ import re
 import shutil
 import struct
 import subprocess
-import tempfile
-import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -26,6 +24,12 @@ NS = {
     "f": "http://schemas.microsoft.com/appx/manifest/foundation/windows10",
     "uap": "http://schemas.microsoft.com/appx/manifest/uap/windows10",
 }
+ASSETS = ("Square44x44Logo.png", "Square150x150Logo.png", "StoreLogo.png")
+APP_DLLS = ("WebView2Loader.dll",)
+WEBVIEW2 = {"mode": "evergreen", "bundled": False}
+# The first Evergreen candidate is expected to be about 5 MiB. Leave headroom
+# for app growth while catching accidental runtime bundling in Windows CI.
+MAX_MSIX_BYTES = 25 * 1024 * 1024
 
 
 def sha256(path):
@@ -65,60 +69,17 @@ def package_inputs(root):
     validate_version(identity["Version"])
     if identity["ProcessorArchitecture"] != "x64":
         raise ValueError("This build flow currently supports x64 packages only.")
-    pin = json.loads((packaging / "webview2.json").read_text(encoding="utf-8"))
-    if pin["architecture"] != "x64" or not re.fullmatch(r"[a-f0-9]{64}", pin["sha256"]):
-        raise ValueError("Invalid WebView2 architecture or SHA-256 pin.")
-    return packaging, manifest, identity, pin
+    return packaging, manifest, identity
 
 
-def download_verified(url, destination, expected_hash):
-    if not destination.exists():
-        temporary = destination.with_suffix(".download")
-        try:
-            with urllib.request.urlopen(url, timeout=60) as response, temporary.open("wb") as output:
-                shutil.copyfileobj(response, output)
-            if sha256(temporary) != expected_hash:
-                raise ValueError("WebView2 download SHA-256 does not match the pinned value.")
-            temporary.replace(destination)
-        finally:
-            temporary.unlink(missing_ok=True)
-    if sha256(destination) != expected_hash:
-        raise ValueError(f"Invalid cached runtime; remove {destination} and retry.")
-
-
-def prepare_runtime(root):
-    _, _, _, pin = package_inputs(root)
-    work = root / "src-tauri/target/msix"
-    work.mkdir(parents=True, exist_ok=True)
-    archive = work / f"WebView2-{pin['version']}-x64.cab"
-    download_verified(pin["url"], archive, pin["sha256"])
-    with tempfile.TemporaryDirectory(dir=work) as temporary:
-        extracted = Path(temporary)
-        # Use the Windows utility explicitly; PowerShell's expand alias is unrelated.
-        expand = Path(os.environ["SystemRoot"]) / "System32/expand.exe"
-        subprocess.run([str(expand), str(archive), "-F:*", str(extracted)], check=True)
-        executables = list(extracted.rglob("msedgewebview2.exe"))
-        if len(executables) != 1 or pe_machine(executables[0]) != 0x8664:
-            raise ValueError("The runtime archive must contain exactly one x64 WebView2 runtime.")
-        destination = root / "src-tauri/WebView2Runtime"
-        if destination.exists():
-            shutil.rmtree(destination)
-        shutil.copytree(executables[0].parent, destination)
-        (destination / "contextkey-runtime.json").write_text(json.dumps(pin), encoding="utf-8")
-    print(f"Prepared WebView2 {pin['version']} (SHA-256 verified).")
-
-
-def stage_package(root, binary, runtime, stage):
-    packaging, manifest, identity, pin = package_inputs(root)
-    if pe_machine(binary) != 0x8664 or pe_machine(runtime / "msedgewebview2.exe") != 0x8664:
-        raise ValueError("Both ContextKey and WebView2 must be x64 executables.")
-    runtime_pin = json.loads((runtime / "contextkey-runtime.json").read_text(encoding="utf-8"))
-    if runtime_pin != pin:
-        raise ValueError("Bundled WebView2 is stale; run the runtime preparation step again.")
+def stage_package(root, binary, stage):
+    packaging, manifest, identity = package_inputs(root)
+    if pe_machine(binary) != 0x8664:
+        raise ValueError("ContextKey must be an x64 executable.")
     config = json.loads((root / "src-tauri/tauri.microsoftstore.conf.json").read_text(encoding="utf-8"))
     mode = config["bundle"]["windows"]["webviewInstallMode"]
-    if mode != {"type": "fixedRuntime", "path": "WebView2Runtime"}:
-        raise ValueError("The Tauri runtime path must match the MSIX payload layout.")
+    if mode != {"type": "skip"}:
+        raise ValueError("The Store profile must use the shared Evergreen runtime (type: skip).")
     publisher = manifest.findtext("f:Properties/f:PublisherDisplayName", namespaces=NS)
     if config["bundle"]["publisher"] != publisher:
         raise ValueError("Tauri and MSIX publisher display names must match.")
@@ -126,15 +87,41 @@ def stage_package(root, binary, runtime, stage):
         shutil.rmtree(stage)
     stage.mkdir(parents=True)
     shutil.copy2(binary, stage / "contextkey.exe")
-    # Some WebView2 loader configurations produce an adjacent DLL.
-    for library in binary.parent.glob("*.dll"):
+    # Only the optional loader is needed; never sweep stale build-output DLLs
+    # (or an old WebView2Runtime folder) into the new Evergreen package.
+    for name in APP_DLLS:
+        library = binary.parent / name
+        if not library.exists():
+            continue
         if pe_machine(library) != 0x8664:
             raise ValueError(f"Non-x64 application DLL: {library}")
         shutil.copy2(library, stage / library.name)
     shutil.copy2(packaging / "AppxManifest.xml", stage)
-    shutil.copytree(packaging / "Assets", stage / "Assets")
-    shutil.copytree(runtime, stage / "WebView2Runtime")
+    (stage / "Assets").mkdir()
+    for name in ASSETS:
+        shutil.copy2(packaging / "Assets" / name, stage / "Assets" / name)
     return identity
+
+
+def validate_package(package):
+    size = package.stat().st_size
+    if size > MAX_MSIX_BYTES:
+        raise ValueError(f"MSIX exceeds the {MAX_MSIX_BYTES // (1024 * 1024)} MiB size budget: {size} bytes.")
+    with zipfile.ZipFile(package) as archive:
+        files = archive.infolist()
+        names = {entry.filename for entry in files}
+        required = {
+            "AppxManifest.xml", "AppxBlockMap.xml", "[Content_Types].xml", "contextkey.exe",
+            *(f"Assets/{name}" for name in ASSETS),
+        }
+        allowed = required | set(APP_DLLS)
+        if not required.issubset(names) or names - allowed or len(names) != len(files):
+            raise ValueError("The output must be a complete unsigned Evergreen package with only the allowed payload.")
+        unpacked = sum(entry.file_size for entry in files)
+        print(f"MSIX size: {size:,} bytes compressed; {unpacked:,} bytes unpacked.")
+        for entry in sorted(files, key=lambda item: item.compress_size, reverse=True)[:5]:
+            print(f"  {entry.filename}: {entry.compress_size:,} compressed / {entry.file_size:,} unpacked bytes")
+    return {"packageSizeBytes": size, "uncompressedSizeBytes": unpacked}
 
 
 def find_makeappx():
@@ -154,7 +141,6 @@ def build_package(root):
     identity = stage_package(
         root,
         root / "src-tauri/target/release/contextkey.exe",
-        root / "src-tauri/WebView2Runtime",
         stage,
     )
     output = work / "output"
@@ -164,20 +150,16 @@ def build_package(root):
     package = output / f"{identity['Name']}_{identity['Version']}_x64.msix"
     # Keep MakeAppx semantic validation enabled (do not add /nv).
     subprocess.run([str(find_makeappx()), "pack", "/o", "/h", "SHA256", "/d", str(stage), "/p", str(package)], check=True)
-    with zipfile.ZipFile(package) as archive:
-        names = set(archive.namelist())
-        required = {"AppxManifest.xml", "AppxBlockMap.xml", "contextkey.exe", "WebView2Runtime/msedgewebview2.exe"}
-        if not required.issubset(names) or "AppxSignature.p7x" in names:
-            raise ValueError("The output must be a complete unsigned Store package.")
+    sizes = validate_package(package)
     digest = sha256(package)
     (output / f"{package.name}.sha256").write_text(f"{digest}  {package.name}\n", encoding="utf-8")
     app_config = json.loads((root / "src-tauri/tauri.conf.json").read_text(encoding="utf-8"))
-    _, _, _, pin = package_inputs(root)
     info = {
         "identity": identity,
         "appVersion": app_config["version"],
         "commit": os.environ.get("GITHUB_SHA", "local build"),
-        "webview2": pin,
+        "webview2": WEBVIEW2,
+        **sizes,
         "sha256": digest,
         "signed": False,
     }
@@ -188,14 +170,11 @@ def build_package(root):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("runtime", "package"))
-    args = parser.parse_args()
+    parser.add_argument("command", choices=("package",))
+    parser.parse_args()
     if os.name != "nt":
-        parser.error("Runtime extraction and MSIX packaging require Windows.")
-    if args.command == "runtime":
-        prepare_runtime(ROOT)
-    else:
-        build_package(ROOT)
+        parser.error("MSIX packaging requires Windows.")
+    build_package(ROOT)
 
 
 if __name__ == "__main__":
