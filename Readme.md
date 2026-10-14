@@ -55,7 +55,7 @@ You need a Windows PC and an API key for a compatible Chat Completions endpoint.
 4. **Save.** Select **Test connection**, then **Save changes**. Reopen Settings from the system tray whenever you need it.
 5. **Try it.** Select text in another application, hold <kbd>Ctrl</kbd>, and press <kbd>C</kbd> twice to translate.
 
-The installer downloads WebView2 if needed, which requires an internet connection. The standalone `contextkey.exe` requires WebView2 to be installed already. In the current source, the standalone EXE and upcoming smaller Store package show a Windows prompt when WebView2 is unavailable, offering Microsoft's Evergreen download page; install the runtime and reopen ContextKey. The published v0.5.0 MSIX still bundles its runtime. See the [development guide](docs/DEVELOPMENT.md#local-development) for runtime and build details.
+The installer downloads WebView2 if needed, which requires an internet connection. Starting with v0.5.1, both the standalone `contextkey.exe` and the smaller MSIX package use installed Evergreen WebView2. If it is unavailable, a Windows prompt offers Microsoft's download page; install the runtime and reopen ContextKey. The older v0.5.0 MSIX bundles its runtime. See the [development guide](docs/DEVELOPMENT.md#local-development) for runtime and build details.
 
 For earlier releases named **Quick Translator**, see [automatic settings migration](#upgrading-from-quick-translator).
 
