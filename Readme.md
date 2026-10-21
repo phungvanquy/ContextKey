@@ -29,10 +29,10 @@ Select text or capture a screen region, invoke a shortcut, and work with the res
 
 | Light theme | Dark theme |
 | :---: | :---: |
-| <img src="docs/previews/popup-light.png" alt="Light translation popup showing English text translated into Vietnamese" width="420" /> | <img src="docs/previews/popup-dark.png" alt="Dark translation popup showing English text translated into Vietnamese" width="420" /> |
+| <img src="docs/previews/chat-light.png" alt="Light chat popup comparing sequential and parallel tasks in a table, with highlighted JavaScript" width="420" /> | <img src="docs/previews/chat-dark.png" alt="Dark chat popup comparing sequential and parallel tasks in a table, with highlighted JavaScript" width="420" /> |
 
 <p align="center">
-  <sub>Browser previews with sample text. <a href="docs/previews/README.md">Explore the chat, settings, and appearance previews →</a></sub>
+  <sub>Actual UI rendered in Chromium with sample conversations. <a href="docs/previews/README.md">See translation, formulas, diagrams, and settings →</a></sub>
 </p>
 
 ## Features
@@ -80,6 +80,12 @@ Select text and invoke the translation shortcut. The result streams into a popup
 
 Drag the header to move the popup or resize its edges to adjust the reading area. Manual sizes are remembered. Press <kbd>Esc</kbd> or click outside to close it.
 
+Markdown formatting carries through to the result, including tables and emphasis:
+
+| Light theme | Dark theme |
+| :---: | :---: |
+| <img src="docs/previews/popup-light.png" alt="Vietnamese translation with a two-column table in the light theme" width="420" /> | <img src="docs/previews/popup-dark.png" alt="Vietnamese translation with a two-column table in the dark theme" width="420" /> |
+
 ### Ask about selected text
 
 Use the chat shortcut to open a conversation with the copied text as context. Chat stays open when you switch applications and is accessible from the taskbar.
@@ -96,6 +102,15 @@ Use the chat shortcut to open a conversation with the copied text as context. Ch
 Closing the chat window ends the session.
 
 </details>
+
+### Read formatted answers
+
+Replies render tables, nested lists, quotes, checklists, highlighted code, links, and images while they stream. Formulas and Mermaid diagrams render with local assets. See the [formula and diagram previews](docs/previews/README.md#formulas-and-diagrams).
+
+- Scroll wide tables, code blocks, formulas, and diagrams horizontally. Focus the content with <kbd>Tab</kbd> to scroll it with the arrow keys.
+- Select and copy text while a reply is arriving; new chunks preserve your selection and reading position.
+- Expand **Diagram source** to inspect the Mermaid text. If a formula or diagram cannot render, its source remains readable.
+- Open web and email links in your default browser or mail application.
 
 ### Ask about a screenshot
 

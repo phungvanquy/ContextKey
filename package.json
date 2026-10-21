@@ -4,6 +4,7 @@
   "scripts": {
     "build:vendor": "node scripts/build-markdown-vendor.mjs",
     "check:vendor": "node scripts/build-markdown-vendor.mjs --check",
+    "docs:screenshots": "node scripts/capture-docs.mjs",
     "test:ui": "playwright test"
   },
   "devDependencies": {

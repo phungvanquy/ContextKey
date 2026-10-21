@@ -60,6 +60,10 @@ Tests run in light and dark themes and cover chat retry, attachment retention an
 
 The saved `theme` preference uses Tauri's [app-wide `set_theme`](https://docs.rs/tauri/latest/tauri/struct.AppHandle.html#method.set_theme) at startup and after saving. On Windows, this updates native windows and WebView2's color preference; `theme.css` continues to use `prefers-color-scheme`. Keep window-specific theme overrides unset so new and existing windows inherit the app preference. The browser suite mocks config persistence; it does not exercise the native theme API.
 
+### Documentation screenshots
+
+Run `npm run docs:screenshots` after installing the browser-test prerequisites above to refresh the [preview gallery](previews/README.md). The capture script uses the actual frontend with local sample data, waits for fonts and rendered diagrams, and writes light/dark PNGs at 2× resolution. It does not read saved settings or contact a model provider. Review the resulting images and update their captions when changing a visible workflow.
+
 ### Updating Markdown libraries
 
 Rendering uses pinned npm dependencies bundled into committed files in `frontend/vendor/`. Ordinary Tauri builds still use static assets without Node.js. Markdown, math, highlighting, and diagram rendering require no CDN; Markdown image URLs can load external images. Mermaid loads only when a diagram is present. The generated assets total about 6 MiB before packaging compression.
