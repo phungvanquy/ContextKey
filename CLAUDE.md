@@ -26,6 +26,7 @@ v0.4.0 shipped translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS read-aloud, config
 |---|---|
 | `main.rs` | Bootstrap: single-instance plugin, config load, tray, hook install, Tauri commands, translate/chat/screenshot triggers, overlay-select handler |
 | `webview_runtime.rs` | Windows WebView2 availability check and native recovery dialog before app initialization; opens the official download page only on acceptance |
+| `external_links.rs` | Validates HTTP/HTTPS/mailto URLs and opens them through the Windows protocol handler, outside the app webview |
 | `config.rs` | `Config` struct, load/save (`~/.contextkey_config.json`), `ConfigState` (Mutex) |
 | `storage.rs` | Imports legacy saved files when ContextKey files are absent; preserves existing files and original contents |
 | `window_state.rs` | Validated popup-size persistence (`~/.contextkey_window_state.json`) |
@@ -45,7 +46,8 @@ v0.4.0 shipped translate (Ctrl+C+C), chat (Ctrl+C+Space), TTS read-aloud, config
 | `popup.*` | Frameless translate popup: draggable, spinner, streaming, error+retry, Esc+blur close |
 | `chat.*` | Frameless chat popup: context strip, transcript, input bar, streaming bubbles, per-turn error+retry. Esc/close only — NO blur close |
 | `toast.*` | Transient cursor-anchored notice; message via query string, self-closes after 2s, never takes focus |
-| `markdown.js` | Minimal XSS-safe markdown→HTML for chat |
+| `markdown.js` / `markdown.css` | Shared Markdown, math, highlighting, and inert diagram previews; preserves selection and content scrolling during streaming |
+| `vendor/` | Committed local rendering libraries, fonts, licenses, and hashes; rebuilt with `npm run build:vendor`, Mermaid loaded only when needed |
 | `overlay.*` | Fullscreen region-select overlay: frozen screenshot on a canvas, drag to select, Esc/right-click cancels |
 | `settings.*` | Section navigation for Connection, Translation, Shortcuts, and Appearance; saved theme selector; API key reveal; persistent save/test actions |
 

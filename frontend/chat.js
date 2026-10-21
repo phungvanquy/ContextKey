@@ -170,10 +170,13 @@ async function send() {
 function beginTurn(userMessage, existingBubble) {
   const aiEl = existingBubble || document.createElement('div');
   aiEl.className = 'msg msg-ai is-streaming';
-  aiEl.innerHTML = '<span class="typing" aria-label="Waiting for a reply"><span></span><span></span><span></span></span>';
+  const response = document.createElement('div');
+  response.className = 'response-content';
+  response.innerHTML = '<span class="typing" aria-label="Waiting for a reply"><span></span><span></span><span></span></span>';
+  aiEl.replaceChildren(response);
   if (!existingBubble) transcript.appendChild(aiEl);
   let full = '';
-  const markdownRenderer = createMarkdownRenderer(aiEl, updateJumpButton);
+  const markdownRenderer = createMarkdownRenderer(response, updateJumpButton);
   streaming = true;
   updateControls();
   updateJumpButton();
@@ -199,15 +202,13 @@ function beginTurn(userMessage, existingBubble) {
     fail(error) {
       if (this.failed) return;
       this.failed = true;
-      markdownRenderer.cancel();
+      markdownRenderer.flush(full);
       aiEl.classList.remove('is-streaming');
       aiEl.classList.add('msg-error');
-      aiEl.replaceChildren();
       if (full.trim()) {
-        const partial = document.createElement('div');
-        partial.className = 'partial-response';
-        partial.innerHTML = renderMarkdown(full);
-        aiEl.appendChild(partial);
+        response.classList.add('partial-response');
+      } else {
+        response.remove();
       }
       aiEl.appendChild(buildErrorNode(error, this));
       updateJumpButton();

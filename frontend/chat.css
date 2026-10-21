@@ -342,46 +342,6 @@
   cursor: default;
 }
 
-/* ── Markdown elements inside AI messages ───────────────────────────── */
-.msg-ai p { margin: 0 0 8px 0; }
-.msg-ai p:last-child { margin-bottom: 0; }
-.msg-ai h1, .msg-ai h2, .msg-ai h3 {
-  color: var(--accent-2);
-  margin: 6px 0 4px 0;
-  line-height: 1.3;
-}
-.msg-ai h1 { font-size: 17px; }
-.msg-ai h2 { font-size: 15px; }
-.msg-ai h3 { font-size: 14px; }
-.msg-ai strong { font-weight: 700; }
-.msg-ai em { font-style: italic; }
-.msg-ai code {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--accent-2);
-  background: var(--mantle);
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-.msg-ai pre {
-  background: var(--mantle);
-  border-radius: var(--radius-card);
-  padding: 10px 12px;
-  margin: 6px 0;
-  overflow-x: auto;
-}
-.msg-ai pre code {
-  background: none;
-  padding: 0;
-  color: var(--text);
-  white-space: pre;
-}
-.msg-ai ul, .msg-ai ol {
-  margin: 4px 0 8px 0;
-  padding-left: 22px;
-}
-.msg-ai li { margin: 2px 0; }
-
 /* ── Failure state inside an assistant bubble ────────────────────────── */
 .msg-error {
   border: 1px solid var(--danger);

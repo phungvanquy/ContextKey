@@ -56,9 +56,29 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-Tests run in light and dark themes and cover chat retry, attachment retention and eviction, context resets, scrolling, keyboard navigation, settings validation, theme selection/save/reload, and rendered popup edge transparency at normal/minimum sizes. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium executable. Native Windows theme propagation, window reuse, focus, shortcuts, capture, and monitor scaling still require desktop validation.
+Tests run in light and dark themes and cover chat retry, attachment retention and eviction, context resets, scrolling, keyboard navigation, settings validation, theme selection/save/reload, and rendered popup edge transparency at normal/minimum sizes. Markdown tests cover tables, nesting, code literals, split streaming delimiters, text selection, content scrolling, links and images, math, diagram lifecycle, and unsafe content. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium executable. Native Windows theme propagation, external browser launch, window reuse, focus, shortcuts, capture, and monitor scaling still require desktop validation.
 
 The saved `theme` preference uses Tauri's [app-wide `set_theme`](https://docs.rs/tauri/latest/tauri/struct.AppHandle.html#method.set_theme) at startup and after saving. On Windows, this updates native windows and WebView2's color preference; `theme.css` continues to use `prefers-color-scheme`. Keep window-specific theme overrides unset so new and existing windows inherit the app preference. The browser suite mocks config persistence; it does not exercise the native theme API.
+
+### Updating Markdown libraries
+
+Rendering uses pinned npm dependencies bundled into committed files in `frontend/vendor/`. Ordinary Tauri builds still use static assets without Node.js. Markdown, math, highlighting, and diagram rendering require no CDN; Markdown image URLs can load external images. Mermaid loads only when a diagram is present. The generated assets total about 6 MiB before packaging compression.
+
+After changing a rendering dependency or a vendor entry point:
+
+```sh
+npm ci
+npm run build:vendor
+npm run check:vendor
+npm audit
+npm run test:ui
+```
+
+Commit `package.json`, `package-lock.json`, and the regenerated assets together. The generator includes third-party licenses, local KaTeX fonts, package versions, and asset hashes. `check:vendor` rebuilds in memory and verifies that the committed output matches the pinned inputs.
+
+Raw model HTML stays escaped. Links use explicit URL validation in both JavaScript and Rust; Windows opens them outside the privileged webview. KaTeX disables trusted commands and limits expansion. Mermaid uses strict mode with model-provided configuration disabled; its sanitized SVG is displayed as an inert image. Invalid formulas and diagrams retain readable source. Keep these boundaries and their regression tests when upgrading libraries.
+
+### Windows build
 
 Build the Windows executable and NSIS installer:
 
@@ -95,6 +115,7 @@ ContextKey runs as a single tray process and creates windows when needed. Transl
 | --- | --- |
 | `main.rs`, `windows.rs` | App lifecycle, commands, tray menu, and window creation. |
 | `webview_runtime.rs` | Windows startup runtime detection and native recovery before any webview or keyboard hook. |
+| `external_links.rs` | Validates web/email links and launches the Windows protocol handler without a command interpreter. |
 | `keyhook.rs`, `hotkey.rs` | Windows keyboard hook and configurable two-step shortcut detection. |
 | `clipboard.rs` | Reads the copied text used by translation and contextual chat. |
 | `api.rs` | Shared HTTP client, streaming Chat Completions requests, errors, and request cancellation. |

@@ -39,6 +39,7 @@ Select text or capture a screen region, invoke a shortcut, and work with the res
 
 - **Translate in place.** Stream translations into a popup, then copy the result or listen with read-aloud controls.
 - **Chat with context.** Ask follow-up questions about selected text or start a general conversation.
+- **Read formatted replies.** Chat and translation support Markdown tables, nested lists, highlighted code, links, images, formulas, and Mermaid diagrams. Wide tables, code, and diagrams scroll within the popup.
 - **Ask about your screen.** Capture a region on any monitor, review it, and send a question to an image-capable model.
 - **Use your preferred provider.** Configure an OpenAI-compatible endpoint, separate text and vision models, and your own translation instructions.
 - **Make it your own.** Customize the shortcuts and choose a light, dark, or system theme.

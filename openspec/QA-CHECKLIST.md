@@ -96,6 +96,9 @@ If the hook affects composition, record the reproduction details and consult the
 
 ## Appearance
 
+- [ ] In both popups, stream tables, nested lists, highlighted code, formulas, Markdown images, and Mermaid diagrams. Wide content scrolls within the response at minimum size and at 125%/150% scaling. Selected text, content scroll, and keyboard focus survive new chunks, completion, and a connection failure.
+- [ ] Switch themes with a rendered diagram visible; its colors update and its source remains available. Invalid formulas or diagrams show readable source, and resetting chat while a diagram loads leaves the next conversation intact.
+- [ ] Activate HTTP/HTTPS and email links with pointer and keyboard. The default browser/mail application opens, the popup webview does not navigate, and a failed launch displays an error. Executable, local-file, and app-protocol links remain inactive.
 - [ ] Translation, chat, and Settings remain readable in both light and dark themes, with consistent focus and hover states.
 - [ ] Settings → Appearance → Theme saves System/Light/Dark, updates open windows and the Settings title bar, and applies to newly opened popups/toasts and after restart. Light/Dark stay fixed when the Windows app theme changes; System resumes following it. Unsaved choices and failed saves do not change the active theme.
 - [ ] Interface icons inherit their state colors, and loading indicators animate correctly.

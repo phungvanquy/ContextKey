@@ -1,0 +1,87 @@
+/* Shared typography and rich content in chat and translation. */
+.markdown-body { min-width: 0; overflow-wrap: break-word; }
+.markdown-body p { margin: 0 0 8px; }
+.markdown-body p:last-child { margin-bottom: 0; }
+.markdown-body :is(h1, h2, h3, h4, h5, h6) { color: var(--accent-2); margin: 8px 0 5px; line-height: 1.35; }
+.markdown-body h1 { font-size: 17px; }
+.markdown-body h2 { font-size: 15px; }
+.markdown-body :is(h3, h4) { font-size: 14px; }
+.markdown-body :is(h5, h6) { font-size: 13px; }
+.markdown-body strong { font-weight: 700; }
+.markdown-body em { font-style: italic; }
+.markdown-body code { font-family: var(--font-mono); font-size: 12px; }
+.markdown-body :not(pre) > code {
+  color: var(--accent-2); background: var(--mantle); padding: 1px 4px;
+  border-radius: 4px; white-space: break-spaces; overflow-wrap: anywhere;
+}
+.markdown-body pre {
+  max-width: 100%; overflow: auto; background: var(--mantle);
+  border-radius: var(--radius-input); padding: 10px 12px; margin: 6px 0;
+  white-space: pre; word-break: normal; overflow-wrap: normal;
+}
+.markdown-body pre code { color: var(--text); background: none; padding: 0; white-space: pre; }
+.markdown-body :is(ul, ol) { margin: 4px 0 8px; padding-left: 22px; }
+.markdown-body li { margin: 2px 0; }
+.markdown-body li > :is(ul, ol) { margin-bottom: 4px; }
+.markdown-body blockquote { margin: 8px 0; padding: 2px 12px; border-left: 3px solid var(--accent-border); color: var(--subtext); }
+.markdown-body hr { border: 0; border-top: 1px solid var(--border); margin: 12px 0; }
+.markdown-body a { color: var(--accent-2); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+.markdown-link-error { color: var(--danger); font-size: 12px; }
+.markdown-body .task-list-item { list-style: none; }
+.task-list-item-checkbox { margin: 0 6px 0 -18px; vertical-align: middle; accent-color: var(--accent); }
+.markdown-image { display: block; max-width: 100%; height: auto; margin: 8px 0; border-radius: var(--radius-input); }
+.markdown-math { max-width: 100%; overflow: auto; margin: 8px 0; }
+.markdown-math .katex-display { margin: 0; padding: 4px 0; }
+.markdown-body .katex { font-size: 1.08em; }
+.math-fallback { color: var(--subtext); }
+.markdown-diagram { max-width: 100%; margin: 8px 0; }
+.diagram-preview { overflow: auto; max-width: 100%; color: var(--subtext); }
+.markdown-diagram-image { display: block; max-width: none; height: auto; }
+.markdown-diagram summary { cursor: pointer; color: var(--subtext); font-size: 12px; margin: 6px 0; }
+.diagram-workspace { position: fixed; left: -100000px; top: 0; width: 1200px; opacity: 0; pointer-events: none; }
+.markdown-body :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-name) { color: var(--accent-2); }
+.markdown-body :is(.hljs-string, .hljs-regexp, .hljs-addition) { color: var(--success); }
+.markdown-body :is(.hljs-number, .hljs-attr, .hljs-symbol, .hljs-type) { color: var(--warn); }
+.markdown-body :is(.hljs-comment, .hljs-quote, .hljs-meta) { color: var(--muted); }
+.markdown-body :is(.hljs-deletion, .hljs-variable) { color: var(--danger); }
+.markdown-body :is(.hljs-title, .hljs-built_in) { color: var(--accent); }
+
+.markdown-table {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+}
+
+.markdown-table:first-child { margin-top: 0; }
+.markdown-table:last-child { margin-bottom: 0; }
+
+.markdown-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: inherit;
+  line-height: 1.5;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.markdown-table th,
+.markdown-table td {
+  padding: 7px 10px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.markdown-table th {
+  background: var(--surface1);
+  font-weight: 600;
+}
+
+.markdown-table tbody tr:nth-child(even) { background: var(--mantle); }
+.markdown-table th:last-child,
+.markdown-table td:last-child { border-right: 0; }
+.markdown-table tr:last-child td { border-bottom: 0; }
+.markdown-table thead:last-child th { border-bottom: 0; }

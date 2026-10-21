@@ -4,6 +4,7 @@
 mod api;
 mod clipboard;
 mod config;
+mod external_links;
 mod hotkey;
 mod keyhook;
 mod popup_sizing;
@@ -56,6 +57,13 @@ fn update_config(
 #[tauri::command]
 fn open_settings_cmd(app: AppHandle) -> Result<(), String> {
     windows::show_settings_window(&app)
+}
+
+#[tauri::command]
+async fn open_external_url(url: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || external_links::open(&url))
+        .await
+        .map_err(|error| error.to_string())?
 }
 
 /// Hand the pending cropped screenshot to a freshly opened chat popup, clearing
@@ -526,6 +534,7 @@ fn main() {
             get_config,
             update_config,
             open_settings_cmd,
+            open_external_url,
             get_overlay_preview,
             take_pending_image,
             take_pending_chat_selection,

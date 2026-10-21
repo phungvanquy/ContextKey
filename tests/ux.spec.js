@@ -43,6 +43,7 @@ async function bridge(page, overrides = {}) {
           if (mock.sendError) throw new Error('Request could not start');
           return new Promise(resolve => { mock.resolveChat = resolve; });
         }
+        if (command === 'open_external_url' && mock.openLinkError) throw new Error('Browser unavailable');
         if (command === 'test_connection') {
           if (mock.testPending) return new Promise(resolve => { mock.resolveTest = resolve; });
           if (mock.testError) throw new Error('HTTP 401 Unauthorized');
@@ -191,6 +192,148 @@ for (const flow of ['chat', 'translate']) {
     await expect(output.locator('h2')).toHaveText('Last chunk');
     await expect(output.locator('img, script')).toHaveCount(0);
     expect(await page.evaluate(() => window.__markdownExecuted)).toBeUndefined();
+  });
+
+  test(`${flow} renders Markdown tables across split headers, rows and escaped pipes`, async ({ page }) => {
+    const output = await openStreamingOutput(page, flow);
+    const chunks = [
+      'A comparison.\r\n\r\n| Feature | Status | Count |\r\n| :--- | :--',
+      '-: | ---: |\r\n| **Tables** | *Work',
+      'ing* | `2` |\r\n| A\\',
+      '|B | Ready | 3 |\r\n\r\nAfter the table.',
+    ];
+    await streamEvent(page, flow, 'chunk', chunks[0]);
+    await expect(output.locator('table')).toHaveCount(0);
+    await expect(output).toContainText('| Feature | Status | Count |');
+    await streamEvent(page, flow, 'chunk', chunks[1]);
+    await expect(output.getByRole('columnheader')).toHaveText(['Feature', 'Status', 'Count']);
+    await expect(output.locator('tbody td')).toHaveText(['Tables', '*Work', '']);
+    await streamEvent(page, flow, 'chunk', chunks[2]);
+    await expect(output.locator('td em')).toHaveText('Working');
+    await expect(output.locator('td code')).toHaveText('2');
+    await streamEvent(page, flow, 'chunk', chunks[3]);
+    await expect(output.locator('tbody td')).toHaveText(['Tables', 'Working', '2', 'A|B', 'Ready', '3']);
+    await expect(output.locator('td strong')).toHaveText('Tables');
+    await expect(output.locator('p')).toHaveText(['A comparison.', 'After the table.']);
+    for (const [column, alignment] of ['left', 'center', 'right'].entries()) {
+      await expect(output.locator('th').nth(column)).toHaveCSS('text-align', alignment);
+      await expect(output.locator('td').nth(column)).toHaveCSS('text-align', alignment);
+    }
+    const streamedHtml = await output.innerHTML();
+    await streamEvent(page, flow, 'done');
+    expect(await output.innerHTML()).toBe(streamedHtml);
+    if (flow === 'chat') {
+      await send(page, 'Follow-up');
+      expect((await requests(page)).at(-1).history[1].content).toBe(chunks.join(''));
+    } else {
+      await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: async text => { window.__mock.copiedText = text; } },
+        configurable: true,
+      }));
+      await page.locator('#copy-btn').click();
+      expect(await page.evaluate(() => window.__mock.copiedText)).toBe(chunks.join(''));
+    }
+  });
+
+  test(`${flow} scrolls wide Markdown tables inside the popup`, async ({ page }) => {
+    await page.setViewportSize({ width: 380, height: 450 });
+    const output = await openStreamingOutput(page, flow);
+    const headers = Array.from({ length: 8 }, (_, index) => `Column ${index + 1}`);
+    const values = headers.map((_, index) => `long_identifier_${index + 1}`);
+    const source = [headers.join(' | '), headers.map(() => '---').join(' | '), values.join(' | ')].join('\n');
+    await streamEvent(page, flow, 'chunk', source);
+    const wrapper = output.getByRole('region', { name: 'Table', exact: true });
+    await expect(wrapper).toBeVisible();
+    await expect(output.locator('td')).toHaveText(values);
+    expect(await wrapper.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+    expect(await output.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    const contentArea = page.locator(flow === 'chat' ? '#transcript' : '#result-area');
+    expect(await contentArea.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await wrapper.focus();
+    // Keyboard scrolling animates; sample its final position before streaming.
+    await wrapper.evaluate(element => {
+      window.__tableScrollEnd = new Promise(resolve => {
+        element.addEventListener('scrollend', () => resolve(element.scrollLeft), { once: true });
+      });
+    });
+    await page.keyboard.press('ArrowRight');
+    const scrollLeft = await page.evaluate(() => window.__tableScrollEnd);
+    expect(scrollLeft).toBeGreaterThan(0);
+    await streamEvent(page, flow, 'chunk', '\n' + values.join(' | '));
+    await expect(output.locator('tbody tr')).toHaveCount(2);
+    await expect(wrapper).toBeFocused();
+    expect(await wrapper.evaluate(element => element.scrollLeft)).toBe(scrollLeft);
+    await streamEvent(page, flow, 'done');
+    await expect(wrapper).toBeFocused();
+    expect(await wrapper.evaluate(element => element.scrollLeft)).toBe(scrollLeft);
+    await expect(page.locator(flow === 'chat' ? '#send-btn' : '#copy-btn')).toBeInViewport();
+  });
+
+  for (const ending of ['done', 'error']) {
+    test(`${flow} preserves code scrolling and text selection through streaming and ${ending}`, async ({ page }) => {
+      const output = await openStreamingOutput(page, flow);
+      await streamEvent(page, flow, 'chunk', '```js\nconst value = "' + 'long_value_'.repeat(100) + '";\n');
+      const pre = output.locator('pre');
+      await expect(pre).toBeVisible();
+      await pre.focus();
+      await pre.evaluate(element => {
+        element.scrollLeft = 140;
+        const text = element.querySelector('.hljs-keyword').firstChild;
+        window.getSelection().setBaseAndExtent(text, text.length, text, 0);
+      });
+      expect(await page.evaluate(() => getSelection().toString())).toBe('const');
+      await streamEvent(page, flow, 'chunk', 'console.log(value);\n```');
+      await expect(pre).toContainText('console.log(value)');
+      expect(await pre.evaluate(element => element.scrollLeft)).toBe(140);
+      await expect(pre).toBeFocused();
+      expect(await page.evaluate(() => getSelection().toString())).toBe('const');
+      if (ending === 'error') await streamEvent(page, flow, 'error', { summary: 'Connection lost.', retryable: true });
+      await streamEvent(page, flow, 'done');
+      expect(await pre.evaluate(element => element.scrollLeft)).toBe(140);
+      await expect(pre).toBeFocused();
+      expect(await page.evaluate(() => getSelection().toString())).toBe('const');
+      expect(await page.evaluate(() => getSelection().anchorOffset > getSelection().focusOffset)).toBe(true);
+    });
+  }
+
+  test(`${flow} opens Markdown links externally and reports a failed browser launch`, async ({ page }) => {
+    const output = await openStreamingOutput(page, flow);
+    await streamEvent(page, flow, 'chunk', '[Documentation](https://example.com/docs?q=one&x=two)');
+    await streamEvent(page, flow, 'done');
+    const url = page.url();
+    const link = output.getByRole('link', { name: 'Documentation' });
+    await link.click();
+    await expect.poll(() => requests(page, 'open_external_url')).toEqual([{ url: 'https://example.com/docs?q=one&x=two' }]);
+    expect(page.url()).toBe(url);
+    await page.evaluate(() => { window.__mock.openLinkError = true; });
+    await link.focus();
+    await page.keyboard.press('Enter');
+    await expect(output.getByRole('alert')).toContainText('Could not open this link');
+    expect(page.url()).toBe(url);
+  });
+
+  test(`${flow} renders math, images and diagrams without overflowing a narrow popup`, async ({ page }) => {
+    await page.setViewportSize({ width: 380, height: 580 });
+    const output = await openStreamingOutput(page, flow);
+    const image = await page.evaluate(() => window.__screenshot('Markdown image'));
+    const source = '#### Rich answer\n\n> A useful quote\n\n- [x] Complete\n- [ ] Pending\n\n$$\\sum_{i=1}^{n} i$$\n\n![Example](' + image + ')\n\n```mermaid\nflowchart TD\nA[Input] --> B[Output]\n```';
+    await streamEvent(page, flow, 'chunk', source);
+    await expect(output.locator('.markdown-diagram')).toHaveAttribute('data-diagram-state', 'ready');
+    await expect(output.locator('h4')).toHaveText('Rich answer');
+    await expect(output.locator('.katex')).toHaveCount(1);
+    await expect(output.locator('.markdown-image')).toHaveAttribute('alt', 'Example');
+    await expect(output.locator('input[type=checkbox]')).toHaveCount(2);
+    const settledImage = await output.locator('.markdown-image').elementHandle();
+    const settledDiagram = await output.locator('.markdown-diagram').elementHandle();
+    await streamEvent(page, flow, 'chunk', '\n\nA follow-up paragraph.');
+    await expect(output.locator('p').last()).toHaveText('A follow-up paragraph.');
+    expect(await settledImage.evaluate(image => image.isConnected)).toBe(true);
+    expect(await settledDiagram.evaluate(diagram => diagram.isConnected)).toBe(true);
+    await streamEvent(page, flow, 'done');
+    expect(await output.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.locator(flow === 'chat' ? '#transcript' : '#result-area').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await expect(page.locator(flow === 'chat' ? '#send-btn' : '#copy-btn')).toBeInViewport();
   });
 
   test(`${flow} preserves pending Markdown on failure and clears it for retry`, async ({ page }) => {
