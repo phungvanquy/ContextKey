@@ -79,7 +79,7 @@ If the hook affects composition, record the reproduction details and consult the
 
 - [ ] The Evergreen MSIX launches on supported Windows 10/11 with the runtime installed, including offline, without a setup prompt. Its archive contains no runtime or installer and remains below the 25 MiB package budget.
 - [ ] In a disposable Windows environment without WebView2, a native prompt appears before settings writes, tray creation, or hook installation. No exits without opening a browser; Yes opens Microsoft's download page and exits. A failed browser launch shows the URL. Installing Evergreen and relaunching restores normal startup. Repeat for the standalone EXE.
-- [ ] Upgrading the old Fixed Version MSIX (`1.0.0.0`) to the Evergreen candidate (`1.0.1.0`) preserves settings and works without the old runtime directory. Test with and without shared Evergreen present; also check uninstall.
+- [ ] Upgrading the old Fixed Version MSIX (`1.0.0.0`) and the previous Evergreen MSIX (`1.0.1.0`) to the current candidate (`1.0.2.0`) preserves settings and works without the old runtime directory. Test with and without shared Evergreen present; also check uninstall.
 - [ ] Launching a second instance brings Settings forward instead of starting another active hook. A shortcut still produces one popup and one API request.
 - [ ] Popups appear near the cursor on monitors with different scaling, including a secondary monitor.
 - [ ] Saving an HTTP endpoint displays a transport warning; an HTTPS or empty URL does not.
